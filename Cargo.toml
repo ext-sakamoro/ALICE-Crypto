@@ -1,0 +1,31 @@
+[package]
+name = "alice-crypto"
+version = "0.1.0"
+edition = "2021"
+authors = ["Moroya Sakamoto"]
+description = "Information-theoretic security primitives for ALICE"
+license = "AGPL-3.0"
+repository = "https://github.com/ext-sakamoro/ALICE-Crypto"
+keywords = ["crypto", "sss", "shamir", "blake3", "no_std"]
+categories = ["cryptography", "no-std"]
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[features]
+default = ["std"]
+std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
+alloc = ["blake3/traits-preview"]
+ffi = ["std"]
+
+[dependencies]
+blake3 = { version = "1.5", default-features = false }
+chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+getrandom = { version = "0.2", default-features = false }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+opt-level = "z"
+strip = true
