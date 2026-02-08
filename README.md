@@ -201,6 +201,15 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 | ALICE-DB | Encrypt master key, split with SSS |
 | ALICE-Sync | Zero-alloc AEAD for P2P packet encryption |
 
+### Auth Bridge (feature: `auth`)
+
+Authentication-aware key management and automatic key rotation via [ALICE-Auth](../ALICE-Auth). When enabled, ALICE-Crypto can tie encryption keys to authenticated identities, enabling automatic key rotation on re-authentication and identity-scoped key derivation.
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.1", features = ["auth"] }
+```
+
 ### ALICE-API Integration
 
 ALICE-Crypto integrates into [ALICE-API](../ALICE-API) as an optional middleware for zero-allocation request body decryption.
