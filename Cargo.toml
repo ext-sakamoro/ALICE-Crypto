@@ -27,5 +27,5 @@ getrandom = { version = "0.2", default-features = false }
 lto = "fat"
 codegen-units = 1
 panic = "abort"
-opt-level = "z"
+opt-level = 3
 strip = true

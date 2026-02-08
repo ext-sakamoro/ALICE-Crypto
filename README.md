@@ -196,9 +196,35 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 
 | Component | Use Case |
 |-----------|----------|
+| ALICE-API | Gateway body decryption middleware |
 | ALICE-Auth | Backup Ed25519 seed with SSS |
 | ALICE-DB | Encrypt master key, split with SSS |
 | ALICE-Sync | Zero-alloc AEAD for P2P packet encryption |
+
+### ALICE-API Integration
+
+ALICE-Crypto integrates into [ALICE-API](../ALICE-API) as an optional middleware for zero-allocation request body decryption.
+
+```toml
+[dependencies]
+alice-api = { version = "0.1", features = ["crypto"] }
+```
+
+```rust
+use alice_api::middleware::{decrypt_body, decrypt_body_aead, Key, Nonce};
+
+// Zero-allocation in-place decryption
+let pt_len = decrypt_body(&key, &nonce, &mut buffer)?;
+
+// With associated data (binds ciphertext to request metadata)
+let pt_len = decrypt_body_aead(&key, &nonce, &mut buffer, b"POST /api/data")?;
+```
+
+With `features = ["secure"]`, ALICE-API provides `SecureGateway` which combines GCRA rate limiting + Ed25519 auth + XChaCha20-Poly1305 decryption in a single pipeline:
+
+```
+Client Request → GCRA Rate Limit → Ed25519 Auth → XChaCha20 Decrypt → Backend
+```
 
 ## License
 
