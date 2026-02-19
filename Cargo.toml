@@ -8,6 +8,7 @@ license = "AGPL-3.0"
 repository = "https://github.com/ext-sakamoro/ALICE-Crypto"
 keywords = ["crypto", "sss", "shamir", "blake3", "no_std"]
 categories = ["cryptography", "no-std"]
+publish = false
 
 [lib]
 crate-type = ["lib", "cdylib"]
