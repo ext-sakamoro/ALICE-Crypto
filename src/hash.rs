@@ -38,7 +38,7 @@ impl core::fmt::Display for Hash {
 }
 
 /// Hash data using BLAKE3
-#[inline]
+#[inline(always)]
 pub fn hash(data: &[u8]) -> Hash {
     Hash(*blake3::hash(data).as_bytes())
 }
@@ -47,16 +47,16 @@ pub fn hash(data: &[u8]) -> Hash {
 pub struct Hasher(blake3::Hasher);
 
 impl Hasher {
-    #[inline]
+    #[inline(always)]
     pub fn new() -> Self { Self(blake3::Hasher::new()) }
 
-    #[inline]
+    #[inline(always)]
     pub fn update(&mut self, data: &[u8]) { self.0.update(data); }
 
-    #[inline]
+    #[inline(always)]
     pub fn finalize(&self) -> Hash { Hash(*self.0.finalize().as_bytes()) }
 
-    #[inline]
+    #[inline(always)]
     pub fn reset(&mut self) { self.0.reset(); }
 }
 
@@ -65,13 +65,13 @@ impl Default for Hasher {
 }
 
 /// Keyed hash (MAC)
-#[inline]
+#[inline(always)]
 pub fn keyed_hash(key: &[u8; 32], data: &[u8]) -> Hash {
     Hash(*blake3::keyed_hash(key, data).as_bytes())
 }
 
 /// Derive key from context string and input
-#[inline]
+#[inline(always)]
 pub fn derive_key(context: &str, input: &[u8]) -> [u8; 32] {
     blake3::derive_key(context, input)
 }

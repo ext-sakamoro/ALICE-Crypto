@@ -34,7 +34,7 @@ pub struct Key(pub [u8; 32]);
 impl Key {
     pub const SIZE: usize = 32;
 
-    #[inline]
+    #[inline(always)]
     pub fn generate() -> Result<Self, CipherError> {
         let mut k = [0u8; 32];
         getrandom::getrandom(&mut k).map_err(|_| CipherError::RandomFailed)?;
@@ -55,7 +55,7 @@ pub struct Nonce(pub [u8; 24]);
 impl Nonce {
     pub const SIZE: usize = 24;
 
-    #[inline]
+    #[inline(always)]
     pub fn generate() -> Result<Self, CipherError> {
         let mut n = [0u8; 24];
         getrandom::getrandom(&mut n).map_err(|_| CipherError::RandomFailed)?;
@@ -84,7 +84,7 @@ pub const TAG_SIZE: usize = 16;
 /// # Layout
 /// Before: `[plaintext.............][16 bytes free]`
 /// After:  `[ciphertext............][auth tag 16B]`
-#[inline]
+#[inline(always)]
 pub fn encrypt_in_place(
     key: &Key,
     nonce: &Nonce,
@@ -113,7 +113,7 @@ pub fn encrypt_in_place(
 /// # Layout
 /// Before: `[ciphertext............][auth tag 16B]`
 /// After:  `[plaintext.............][garbage 16B]`
-#[inline]
+#[inline(always)]
 pub fn decrypt_in_place(
     key: &Key,
     nonce: &Nonce,
@@ -138,7 +138,7 @@ pub fn decrypt_in_place(
 }
 
 /// Encrypt in-place with associated data (zero allocation)
-#[inline]
+#[inline(always)]
 pub fn encrypt_in_place_aead(
     key: &Key,
     nonce: &Nonce,
@@ -161,7 +161,7 @@ pub fn encrypt_in_place_aead(
 }
 
 /// Decrypt in-place with associated data (zero allocation)
-#[inline]
+#[inline(always)]
 pub fn decrypt_in_place_aead(
     key: &Key,
     nonce: &Nonce,
@@ -193,7 +193,7 @@ pub fn decrypt_in_place_aead(
 /// Convenience: encrypt with random nonce, prepend nonce to output
 ///
 /// Output format: `[nonce 24B][ciphertext][tag 16B]`
-#[inline]
+#[inline(always)]
 pub fn seal(key: &Key, plaintext: &[u8]) -> Result<Vec<u8>, CipherError> {
     let nonce = Nonce::generate()?;
     let total_len = Nonce::SIZE + plaintext.len() + TAG_SIZE;
@@ -212,7 +212,7 @@ pub fn seal(key: &Key, plaintext: &[u8]) -> Result<Vec<u8>, CipherError> {
 /// Convenience: extract nonce from input and decrypt
 ///
 /// Input format: `[nonce 24B][ciphertext][tag 16B]`
-#[inline]
+#[inline(always)]
 pub fn open(key: &Key, sealed: &[u8]) -> Result<Vec<u8>, CipherError> {
     if sealed.len() < Nonce::SIZE + TAG_SIZE {
         return Err(CipherError::BufferTooSmall);
