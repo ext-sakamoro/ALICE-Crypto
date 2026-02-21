@@ -149,10 +149,10 @@ pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
     for i in 0..k {
         let xi = x_coords[i];
         let mut prod = GF::ONE;
-        for j in 0..k {
+        for (j, &xj) in x_coords.iter().enumerate().take(k) {
             if i != j {
                 // xi - xj = xi + xj in GF(2^8) (XOR)
-                prod = prod.mul(xi.add(x_coords[j]));
+                prod = prod.mul(xi.add(xj));
             }
         }
         denom_products[i] = prod;
@@ -167,9 +167,9 @@ pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
     let mut basis = [GF::ZERO; 255];
     for i in 0..k {
         let mut numer_prod = GF::ONE;
-        for j in 0..k {
+        for (j, &xj) in x_coords.iter().enumerate().take(k) {
             if i != j {
-                numer_prod = numer_prod.mul(x_coords[j]);
+                numer_prod = numer_prod.mul(xj);
             }
         }
         basis[i] = numer_prod.mul(denom_inv[i]);
