@@ -229,4 +229,215 @@ mod tests {
         // Should fail because of zero
         assert!(batch_inv(&inputs, &mut outputs).is_none());
     }
+
+    // ── New tests ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_gf_constants() {
+        assert_eq!(GF::ZERO.0, 0);
+        assert_eq!(GF::ONE.0, 1);
+    }
+
+    #[test]
+    fn test_add_commutativity() {
+        // a + b == b + a in GF(2^8)
+        let a = GF(0xAB);
+        let b = GF(0xCD);
+        assert_eq!(a.add(b), b.add(a));
+    }
+
+    #[test]
+    fn test_add_identity() {
+        // a + 0 == a
+        for v in [0u8, 1, 127, 128, 255] {
+            let a = GF(v);
+            assert_eq!(a.add(GF::ZERO), a);
+        }
+    }
+
+    #[test]
+    fn test_add_self_is_zero() {
+        // a + a == 0 in GF(2^8) (XOR)
+        for v in [1u8, 42, 127, 200, 255] {
+            let a = GF(v);
+            assert_eq!(a.add(a), GF::ZERO);
+        }
+    }
+
+    #[test]
+    fn test_sub_equals_add() {
+        // sub is same as add in GF(2^8)
+        let a = GF(0x53);
+        let b = GF(0xCA);
+        assert_eq!(a.sub(b), a.add(b));
+    }
+
+    #[test]
+    fn test_mul_identity() {
+        // a * 1 == a
+        for v in [0u8, 1, 42, 127, 255] {
+            let a = GF(v);
+            assert_eq!(a.mul(GF::ONE), a);
+        }
+    }
+
+    #[test]
+    fn test_mul_by_zero() {
+        // a * 0 == 0
+        for v in [1u8, 42, 127, 255] {
+            let a = GF(v);
+            assert_eq!(a.mul(GF::ZERO), GF::ZERO);
+        }
+    }
+
+    #[test]
+    fn test_mul_commutativity() {
+        let a = GF(0x53);
+        let b = GF(0x7F);
+        assert_eq!(a.mul(b), b.mul(a));
+    }
+
+    #[test]
+    fn test_mul_associativity() {
+        let a = GF(0x12);
+        let b = GF(0x34);
+        let c = GF(0x56);
+        assert_eq!(a.mul(b).mul(c), a.mul(b.mul(c)));
+    }
+
+    #[test]
+    fn test_mul_distributivity() {
+        // a * (b + c) == a*b + a*c
+        let a = GF(0xAB);
+        let b = GF(0x12);
+        let c = GF(0x34);
+        assert_eq!(a.mul(b.add(c)), a.mul(b).add(a.mul(c)));
+    }
+
+    #[test]
+    fn test_div_roundtrip() {
+        // a / b * b == a (for b != 0)
+        let a = GF(0x99);
+        let b = GF(0x53);
+        let result = a.div(b).unwrap().mul(b);
+        assert_eq!(result, a);
+    }
+
+    #[test]
+    fn test_div_by_zero() {
+        assert!(GF(0x42).div(GF::ZERO).is_none());
+    }
+
+    #[test]
+    fn test_div_by_self() {
+        // a / a == 1 for a != 0
+        for v in [1u8, 42, 127, 255] {
+            let a = GF(v);
+            assert_eq!(a.div(a).unwrap(), GF::ONE);
+        }
+    }
+
+    #[test]
+    fn test_new_constructor() {
+        let g = GF::new(0xAB);
+        assert_eq!(g.0, 0xAB);
+    }
+
+    #[test]
+    fn test_gf_clone_copy() {
+        let a = GF(0x42);
+        let b = a;       // Copy
+        let c = a.clone(); // Clone
+        assert_eq!(a, b);
+        assert_eq!(a, c);
+    }
+
+    #[test]
+    fn test_gf_eq() {
+        assert_eq!(GF(0x42), GF(0x42));
+        assert_ne!(GF(0x42), GF(0x43));
+    }
+
+    #[test]
+    fn test_batch_inv_empty() {
+        let inputs: [GF; 0] = [];
+        let mut outputs: [GF; 0] = [];
+        assert!(batch_inv(&inputs, &mut outputs).is_some());
+    }
+
+    #[test]
+    fn test_batch_inv_single() {
+        let inputs = [GF(7)];
+        let mut outputs = [GF::ZERO; 1];
+        batch_inv(&inputs, &mut outputs).unwrap();
+        assert_eq!(inputs[0].mul(outputs[0]), GF::ONE);
+    }
+
+    #[test]
+    fn test_batch_inv_output_too_small() {
+        let inputs = [GF(3), GF(5), GF(7)];
+        let mut outputs = [GF::ZERO; 2]; // too small
+        assert!(batch_inv(&inputs, &mut outputs).is_none());
+    }
+
+    #[test]
+    fn test_batch_inv_matches_individual() {
+        let inputs = [GF(10), GF(20), GF(30), GF(40)];
+        let mut batch_outputs = [GF::ZERO; 4];
+        batch_inv(&inputs, &mut batch_outputs).unwrap();
+
+        for i in 0..4 {
+            let individual_inv = inputs[i].inv().unwrap();
+            assert_eq!(batch_outputs[i], individual_inv);
+        }
+    }
+
+    #[test]
+    fn test_batch_inv_stack_empty() {
+        let inputs: [GF; 0] = [];
+        let mut outputs = [GF::ZERO; 8];
+        let count = batch_inv_stack::<8>(&inputs, &mut outputs).unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_batch_inv_stack_too_large() {
+        // N=4 but inputs has 5 elements
+        let inputs = [GF(1), GF(2), GF(3), GF(4), GF(5)];
+        let mut outputs = [GF::ZERO; 4];
+        assert!(batch_inv_stack::<4>(&inputs, &mut outputs).is_none());
+    }
+
+    #[test]
+    fn test_batch_inv_stack_correctness() {
+        let inputs = [GF(3), GF(5), GF(7)];
+        let mut outputs = [GF::ZERO; 8];
+        let count = batch_inv_stack::<8>(&inputs, &mut outputs).unwrap();
+        assert_eq!(count, 3);
+        for i in 0..3 {
+            assert_eq!(inputs[i].mul(outputs[i]), GF::ONE);
+        }
+    }
+
+    #[test]
+    fn test_inv_double_inverse() {
+        // inv(inv(a)) == a
+        for v in [1u8, 42, 127, 200, 255] {
+            let a = GF(v);
+            let inv_a = a.inv().unwrap();
+            let inv_inv_a = inv_a.inv().unwrap();
+            assert_eq!(inv_inv_a, a);
+        }
+    }
+
+    #[test]
+    fn test_mul_full_range_boundary() {
+        // Test edge-of-field values
+        assert_eq!(GF(255).mul(GF(255)), GF(255).mul(GF(255)));
+        let a = GF(255);
+        let b = GF(128);
+        let ab = a.mul(b);
+        let ba = b.mul(a);
+        assert_eq!(ab, ba);
+    }
 }

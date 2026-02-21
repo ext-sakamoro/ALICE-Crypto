@@ -316,4 +316,232 @@ mod tests {
         encrypt_in_place_aead(&key, &nonce, &mut buffer[..plaintext_len + TAG_SIZE], plaintext_len, aad).unwrap();
         assert!(decrypt_in_place_aead(&key, &nonce, &mut buffer[..plaintext_len + TAG_SIZE], b"wrong").is_err());
     }
+
+    // ── New tests ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_key_size_constant() {
+        assert_eq!(Key::SIZE, 32);
+    }
+
+    #[test]
+    fn test_nonce_size_constant() {
+        assert_eq!(Nonce::SIZE, 24);
+    }
+
+    #[test]
+    fn test_tag_size_constant() {
+        assert_eq!(TAG_SIZE, 16);
+    }
+
+    #[test]
+    fn test_key_from_bytes_roundtrip() {
+        let bytes = [0xABu8; 32];
+        let key = Key::from_bytes(bytes);
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_nonce_from_bytes_roundtrip() {
+        let bytes = [0xCDu8; 24];
+        let nonce = Nonce::from_bytes(bytes);
+        assert_eq!(nonce.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_key_generate_unique() {
+        // Two generated keys should (overwhelmingly likely) differ
+        let k1 = Key::generate().unwrap();
+        let k2 = Key::generate().unwrap();
+        // Extremely improbable to be equal; verify both are 32 bytes
+        assert_eq!(k1.0.len(), 32);
+        assert_eq!(k2.0.len(), 32);
+    }
+
+    #[test]
+    fn test_nonce_generate_unique() {
+        let n1 = Nonce::generate().unwrap();
+        let n2 = Nonce::generate().unwrap();
+        assert_eq!(n1.0.len(), 24);
+        assert_eq!(n2.0.len(), 24);
+    }
+
+    #[test]
+    fn test_cipher_error_variants_eq() {
+        assert_eq!(CipherError::EncryptionFailed, CipherError::EncryptionFailed);
+        assert_ne!(CipherError::EncryptionFailed, CipherError::DecryptionFailed);
+        assert_eq!(CipherError::RandomFailed, CipherError::RandomFailed);
+        assert_eq!(CipherError::BufferTooSmall, CipherError::BufferTooSmall);
+    }
+
+    #[test]
+    fn test_cipher_error_clone_copy() {
+        let e = CipherError::DecryptionFailed;
+        let e2 = e;       // Copy
+        let e3 = e.clone(); // Clone
+        assert_eq!(e, e2);
+        assert_eq!(e, e3);
+    }
+
+    #[test]
+    fn test_encrypt_in_place_buffer_too_small() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let plaintext = b"hello";
+        let plaintext_len = plaintext.len();
+
+        // Buffer is exactly plaintext_len (no room for tag)
+        let mut buffer = [0u8; 5];
+        buffer[..plaintext_len].copy_from_slice(plaintext);
+
+        let result = encrypt_in_place(&key, &nonce, &mut buffer, plaintext_len);
+        assert!(matches!(result, Err(CipherError::BufferTooSmall)));
+    }
+
+    #[test]
+    fn test_decrypt_in_place_buffer_too_small() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+
+        // Buffer smaller than TAG_SIZE
+        let mut buffer = [0u8; 10]; // < 16
+        let result = decrypt_in_place(&key, &nonce, &mut buffer);
+        assert!(matches!(result, Err(CipherError::BufferTooSmall)));
+    }
+
+    #[test]
+    fn test_wrong_nonce_fails() {
+        let key = Key::generate().unwrap();
+        let nonce1 = Nonce::generate().unwrap();
+        let nonce2 = Nonce::generate().unwrap();
+        let plaintext = b"nonce mismatch";
+        let plaintext_len = plaintext.len();
+
+        let mut buffer = [0u8; 64];
+        buffer[..plaintext_len].copy_from_slice(plaintext);
+
+        let ct_len = encrypt_in_place(&key, &nonce1, &mut buffer[..plaintext_len + TAG_SIZE], plaintext_len).unwrap();
+        // Decrypt with a different nonce must fail
+        assert!(decrypt_in_place(&key, &nonce2, &mut buffer[..ct_len]).is_err());
+    }
+
+    #[test]
+    fn test_tampered_auth_tag() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let plaintext = b"tag tamper";
+        let plaintext_len = plaintext.len();
+
+        let mut buffer = [0u8; 64];
+        buffer[..plaintext_len].copy_from_slice(plaintext);
+
+        let ct_len = encrypt_in_place(&key, &nonce, &mut buffer[..plaintext_len + TAG_SIZE], plaintext_len).unwrap();
+        // Flip a bit in the auth tag (last 16 bytes)
+        buffer[ct_len - 1] ^= 0x01;
+
+        assert!(decrypt_in_place(&key, &nonce, &mut buffer[..ct_len]).is_err());
+    }
+
+    #[test]
+    fn test_seal_open_empty_plaintext() {
+        let key = Key::generate().unwrap();
+        let plaintext = b"";
+
+        let sealed = seal(&key, plaintext).unwrap();
+        // sealed = 24 (nonce) + 0 (ct) + 16 (tag) = 40 bytes
+        assert_eq!(sealed.len(), Nonce::SIZE + TAG_SIZE);
+
+        let opened = open(&key, &sealed).unwrap();
+        assert_eq!(opened.as_slice(), plaintext);
+    }
+
+    #[test]
+    fn test_open_too_short_input() {
+        let key = Key::generate().unwrap();
+        // Less than Nonce::SIZE + TAG_SIZE = 40 bytes
+        let short = [0u8; 10];
+        assert!(matches!(open(&key, &short), Err(CipherError::BufferTooSmall)));
+    }
+
+    #[test]
+    fn test_seal_open_large_plaintext() {
+        let key = Key::generate().unwrap();
+        let plaintext = vec![0x77u8; 4096];
+
+        let sealed = seal(&key, &plaintext).unwrap();
+        assert_eq!(sealed.len(), Nonce::SIZE + plaintext.len() + TAG_SIZE);
+
+        let opened = open(&key, &sealed).unwrap();
+        assert_eq!(opened, plaintext);
+    }
+
+    #[test]
+    fn test_aead_empty_aad() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let plaintext = b"no aad";
+        let plaintext_len = plaintext.len();
+
+        let mut buffer = [0u8; 64];
+        buffer[..plaintext_len].copy_from_slice(plaintext);
+
+        let ct_len = encrypt_in_place_aead(&key, &nonce, &mut buffer[..plaintext_len + TAG_SIZE], plaintext_len, b"").unwrap();
+        let pt_len = decrypt_in_place_aead(&key, &nonce, &mut buffer[..ct_len], b"").unwrap();
+        assert_eq!(&buffer[..pt_len], plaintext);
+    }
+
+    #[test]
+    fn test_aead_tampered_aad_byte() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let aad = b"my_aad";
+        let plaintext = b"protected";
+        let plaintext_len = plaintext.len();
+
+        let mut buffer = [0u8; 64];
+        buffer[..plaintext_len].copy_from_slice(plaintext);
+
+        let ct_len = encrypt_in_place_aead(&key, &nonce, &mut buffer[..plaintext_len + TAG_SIZE], plaintext_len, aad).unwrap();
+        // Change one byte of AAD
+        assert!(decrypt_in_place_aead(&key, &nonce, &mut buffer[..ct_len], b"my_aae").is_err());
+    }
+
+    #[test]
+    fn test_decrypt_in_place_aead_buffer_too_small() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let mut buffer = [0u8; 10]; // < TAG_SIZE
+        assert!(matches!(
+            decrypt_in_place_aead(&key, &nonce, &mut buffer, b""),
+            Err(CipherError::BufferTooSmall)
+        ));
+    }
+
+    #[test]
+    fn test_encrypt_in_place_aead_buffer_too_small() {
+        let key = Key::generate().unwrap();
+        let nonce = Nonce::generate().unwrap();
+        let plaintext_len = 5;
+        let mut buffer = [0u8; 5]; // no room for tag
+        assert!(matches!(
+            encrypt_in_place_aead(&key, &nonce, &mut buffer, plaintext_len, b""),
+            Err(CipherError::BufferTooSmall)
+        ));
+    }
+
+    #[test]
+    fn test_key_clone() {
+        let k = Key::generate().unwrap();
+        let k2 = k.clone();
+        assert_eq!(k.0, k2.0);
+    }
+
+    #[test]
+    fn test_nonce_clone_copy() {
+        let n = Nonce::generate().unwrap();
+        let n2 = n;       // Copy
+        let n3 = n.clone(); // Clone
+        assert_eq!(n.0, n2.0);
+        assert_eq!(n.0, n3.0);
+    }
 }

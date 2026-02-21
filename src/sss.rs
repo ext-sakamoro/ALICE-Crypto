@@ -287,4 +287,157 @@ mod tests {
         let recovered = recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
         assert_eq!(recovered, secret);
     }
+
+    // ── New tests ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_empty_secret() {
+        assert!(matches!(split(b"", 5, 3), Err(SssError::EmptySecret)));
+    }
+
+    #[test]
+    fn test_recover_empty_shards() {
+        assert!(matches!(recover(&[]), Err(SssError::NotEnoughShards)));
+    }
+
+    #[test]
+    fn test_recover_duplicate_x() {
+        let secret = b"dupe";
+        let shards = split(secret, 5, 3).unwrap();
+        // Provide the same shard twice
+        let duped = [shards[0].clone(), shards[0].clone(), shards[2].clone()];
+        assert!(matches!(recover(&duped), Err(SssError::DuplicateX)));
+    }
+
+    #[test]
+    fn test_sss_error_clone_copy() {
+        let e = SssError::ThresholdTooLow;
+        let e2 = e;       // Copy
+        let e3 = e.clone(); // Clone
+        assert_eq!(e, e2);
+        assert_eq!(e, e3);
+    }
+
+    #[test]
+    fn test_sss_error_eq() {
+        assert_eq!(SssError::EmptySecret, SssError::EmptySecret);
+        assert_ne!(SssError::EmptySecret, SssError::DuplicateX);
+    }
+
+    #[test]
+    fn test_shard_x_coordinates() {
+        // X coordinates for N shards must be 1..=N
+        let shards = split(b"xcoord", 5, 3).unwrap();
+        for (i, shard) in shards.iter().enumerate() {
+            assert_eq!(shard.x, (i + 1) as u8);
+        }
+    }
+
+    #[test]
+    fn test_shard_y_length_matches_secret() {
+        let secret = b"length_check";
+        let shards = split(secret, 4, 2).unwrap();
+        for shard in &shards {
+            assert_eq!(shard.y.len(), secret.len());
+        }
+    }
+
+    #[test]
+    fn test_split_2_of_2() {
+        // Minimum threshold: 2-of-2
+        let secret = b"minimal_threshold";
+        let shards = split(secret, 2, 2).unwrap();
+        assert_eq!(shards.len(), 2);
+        let recovered = recover(&shards).unwrap();
+        assert_eq!(&recovered, secret);
+    }
+
+    #[test]
+    fn test_split_single_byte_secret() {
+        let secret = [0xABu8];
+        let shards = split(&secret, 3, 2).unwrap();
+        let recovered = recover(&[shards[0].clone(), shards[2].clone()]).unwrap();
+        assert_eq!(recovered.as_slice(), &secret);
+    }
+
+    #[test]
+    fn test_split_all_zeros_secret() {
+        let secret = [0u8; 16];
+        let shards = split(&secret, 3, 2).unwrap();
+        let recovered = recover(&[shards[0].clone(), shards[1].clone()]).unwrap();
+        assert_eq!(recovered.as_slice(), &secret);
+    }
+
+    #[test]
+    fn test_split_all_ones_secret() {
+        let secret = [0xFFu8; 16];
+        let shards = split(&secret, 3, 2).unwrap();
+        let recovered = recover(&[shards[1].clone(), shards[2].clone()]).unwrap();
+        assert_eq!(recovered.as_slice(), &secret);
+    }
+
+    #[test]
+    fn test_all_shards_recovery() {
+        // Using all N shards (N > K) must still work
+        let secret = b"all_shards";
+        let shards = split(secret, 5, 3).unwrap();
+        let recovered = recover(&shards).unwrap();
+        assert_eq!(&recovered, secret);
+    }
+
+    #[test]
+    fn test_shard_clone() {
+        let shards = split(b"clone_test", 3, 2).unwrap();
+        let s0 = shards[0].clone();
+        assert_eq!(s0.x, shards[0].x);
+        assert_eq!(s0.y, shards[0].y);
+    }
+
+    #[test]
+    fn test_split_n_equals_k() {
+        // n == k is the degenerate case (all shards needed)
+        let secret = b"n_eq_k";
+        let shards = split(secret, 3, 3).unwrap();
+        let recovered = recover(&shards).unwrap();
+        assert_eq!(&recovered, secret);
+    }
+
+    #[test]
+    fn test_split_over_rng_buffer_boundary() {
+        // Secret longer than RNG_BUF_SIZE (1024) bytes stresses buffered RNG refill
+        let secret = vec![0x55u8; 1025];
+        let shards = split(&secret, 3, 2).unwrap();
+        let recovered = recover(&[shards[0].clone(), shards[2].clone()]).unwrap();
+        assert_eq!(recovered, secret);
+    }
+
+    #[test]
+    fn test_recovered_length_matches_secret() {
+        let secret = b"length";
+        let shards = split(secret, 4, 2).unwrap();
+        let recovered = recover(&[shards[0].clone(), shards[3].clone()]).unwrap();
+        assert_eq!(recovered.len(), secret.len());
+    }
+
+    #[test]
+    fn test_sss_error_variants_debug() {
+        // All error variants should be debug-printable
+        let errors = [
+            SssError::ThresholdTooLow,
+            SssError::ThresholdTooHigh,
+            SssError::TooManyShards,
+            SssError::NotEnoughShards,
+            SssError::EmptySecret,
+            SssError::DuplicateX,
+            SssError::RandomFailed,
+        ];
+        for e in &errors {
+            let s = alloc::format!("{:?}", e);
+            assert!(!s.is_empty());
+        }
+    }
+
+    extern crate alloc;
+    #[allow(unused_imports)]
+    use alloc::format;
 }
