@@ -34,7 +34,22 @@ Extended nonce variant of ChaCha20.
 
 ```toml
 [dependencies]
-alice-crypto = { version = "0.1", default-features = false }
+alice-crypto = { version = "0.1" }
+```
+
+### Features
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `std` | yes | Standard library support (enables OS RNG, std I/O) |
+| `alloc` | no | Heap allocation without std (for embedded targets) |
+| `ffi` | no | C-compatible cdylib exports (implies `std`) |
+
+For `no_std` environments (embedded, RTOS, WASM):
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.1", default-features = false, features = ["alloc"] }
 ```
 
 ## Usage
@@ -70,6 +85,10 @@ let mut hasher = alice_crypto::Hasher::new();
 hasher.update(b"part1");
 hasher.update(b"part2");
 let h = hasher.finalize();
+
+// Keyed hash (MAC)
+let key = [0x42u8; 32];
+let mac = alice_crypto::keyed_hash(&key, b"data");
 
 // Key derivation
 let key = alice_crypto::derive_key("ALICE context", b"input");
@@ -111,6 +130,28 @@ let ct_len = encrypt_in_place(&key, &nonce, &mut buffer, plaintext.len())?;
 let pt_len = decrypt_in_place(&key, &nonce, &mut buffer[..ct_len])?;
 ```
 
+### Zero-Allocation In-Place Encryption with Associated Data (AEAD)
+
+Binds ciphertext to additional unencrypted metadata. Decryption fails if the associated data does not match.
+
+```rust
+use alice_crypto::{Key, Nonce, encrypt_in_place_aead, decrypt_in_place_aead, TAG_SIZE};
+
+let key = Key::generate()?;
+let nonce = Nonce::generate()?;
+let aad = b"POST /api/v1/data"; // associated data (not encrypted)
+
+let mut buffer = [0u8; 128];
+let plaintext = b"request body";
+buffer[..plaintext.len()].copy_from_slice(plaintext);
+
+// Encrypt, binding ciphertext to `aad`
+let ct_len = encrypt_in_place_aead(&key, &nonce, &mut buffer, plaintext.len(), aad)?;
+
+// Decrypt — must supply the same `aad`, otherwise returns DecryptionFailed
+let pt_len = decrypt_in_place_aead(&key, &nonce, &mut buffer[..ct_len], aad)?;
+```
+
 ### Integration: SSS + Encryption
 
 ```rust
@@ -137,6 +178,33 @@ let recovered_key = Key::from_bytes(key_arr);
 // 6. Decrypt
 let data = open(&recovered_key, &encrypted)?;
 ```
+
+## Error Types
+
+### `SssError`
+
+Returned by `sss::split` and `sss::recover`.
+
+| Variant | Cause |
+|---------|-------|
+| `ThresholdTooLow` | `k < 2` |
+| `ThresholdTooHigh` | `k > n` |
+| `TooManyShards` | `n == 0` or more than 255 shards passed to `recover` |
+| `NotEnoughShards` | Empty shard slice passed to `recover` |
+| `EmptySecret` | Zero-length secret passed to `split` |
+| `DuplicateX` | Two shards share the same X coordinate |
+| `RandomFailed` | OS RNG unavailable |
+
+### `CipherError`
+
+Returned by all `stream` module functions.
+
+| Variant | Cause |
+|---------|-------|
+| `EncryptionFailed` | Cipher initialization or encryption error |
+| `DecryptionFailed` | Authentication tag mismatch (wrong key, nonce, or tampered data) |
+| `RandomFailed` | OS RNG unavailable (during `Key::generate` or `Nonce::generate`) |
+| `BufferTooSmall` | Buffer does not have enough room for the auth tag |
 
 ## Deep Fried Specs
 
@@ -178,6 +246,7 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 | Feature | Implementation |
 |---------|----------------|
 | Core API | Zero-allocation `*_in_place` functions |
+| AEAD variant | `*_in_place_aead` with associated data binding |
 | Convenience | `seal`/`open` wrap in-place core |
 | Tag Size | 16 bytes (Poly1305) |
 | Nonce Size | 24 bytes (extended, random-safe) |
@@ -196,44 +265,8 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 
 | Component | Use Case |
 |-----------|----------|
-| ALICE-API | Gateway body decryption middleware |
-| ALICE-Auth | Backup Ed25519 seed with SSS |
 | ALICE-DB | Encrypt master key, split with SSS |
 | ALICE-Sync | Zero-alloc AEAD for P2P packet encryption |
-
-### Auth Bridge (feature: `auth`)
-
-Authentication-aware key management and automatic key rotation via [ALICE-Auth](../ALICE-Auth). When enabled, ALICE-Crypto can tie encryption keys to authenticated identities, enabling automatic key rotation on re-authentication and identity-scoped key derivation.
-
-```toml
-[dependencies]
-alice-crypto = { version = "0.1", features = ["auth"] }
-```
-
-### ALICE-API Integration
-
-ALICE-Crypto integrates into [ALICE-API](../ALICE-API) as an optional middleware for zero-allocation request body decryption.
-
-```toml
-[dependencies]
-alice-api = { version = "0.1", features = ["crypto"] }
-```
-
-```rust
-use alice_api::middleware::{decrypt_body, decrypt_body_aead, Key, Nonce};
-
-// Zero-allocation in-place decryption
-let pt_len = decrypt_body(&key, &nonce, &mut buffer)?;
-
-// With associated data (binds ciphertext to request metadata)
-let pt_len = decrypt_body_aead(&key, &nonce, &mut buffer, b"POST /api/data")?;
-```
-
-With `features = ["secure"]`, ALICE-API provides `SecureGateway` which combines GCRA rate limiting + Ed25519 auth + XChaCha20-Poly1305 decryption in a single pipeline:
-
-```
-Client Request → GCRA Rate Limit → Ed25519 Auth → XChaCha20 Decrypt → Backend
-```
 
 ## License
 
