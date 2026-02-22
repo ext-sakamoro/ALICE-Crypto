@@ -13,15 +13,21 @@ impl GF {
     pub const ONE: GF = GF(1);
 
     #[inline(always)]
-    pub const fn new(v: u8) -> Self { GF(v) }
+    pub const fn new(v: u8) -> Self {
+        GF(v)
+    }
 
     /// Addition in GF(2^8) = XOR
     #[inline(always)]
-    pub const fn add(self, rhs: GF) -> GF { GF(self.0 ^ rhs.0) }
+    pub const fn add(self, rhs: GF) -> GF {
+        GF(self.0 ^ rhs.0)
+    }
 
     /// Subtraction in GF(2^8) = XOR (same as add)
     #[inline(always)]
-    pub const fn sub(self, rhs: GF) -> GF { self.add(rhs) }
+    pub const fn sub(self, rhs: GF) -> GF {
+        self.add(rhs)
+    }
 
     /// Multiplication in GF(2^8) using Russian Peasant algorithm
     /// Fully unrolled, branchless, constant-time (timing attack resistant)
@@ -88,23 +94,25 @@ impl GF {
     /// Fully unrolled addition chain (zero branches)
     #[inline(always)]
     pub const fn inv(self) -> Option<GF> {
-        if self.0 == 0 { return None; }
+        if self.0 == 0 {
+            return None;
+        }
 
         // Addition chain for a^254
         // 254 = 128 + 64 + 32 + 16 + 8 + 4 + 2
         // = 2(1 + 2(1 + 2(1 + 2(1 + 2(1 + 2(1 + 2))))))
         let a = self;
-        let a2 = a.mul(a);           // a^2
-        let a3 = a2.mul(a);          // a^3
-        let a6 = a3.mul(a3);         // a^6
-        let a12 = a6.mul(a6);        // a^12
-        let a15 = a12.mul(a3);       // a^15
-        let a30 = a15.mul(a15);      // a^30
-        let a60 = a30.mul(a30);      // a^60
-        let a63 = a60.mul(a3);       // a^63
-        let a126 = a63.mul(a63);     // a^126
-        let a252 = a126.mul(a126);   // a^252
-        let a254 = a252.mul(a2);     // a^254
+        let a2 = a.mul(a); // a^2
+        let a3 = a2.mul(a); // a^3
+        let a6 = a3.mul(a3); // a^6
+        let a12 = a6.mul(a6); // a^12
+        let a15 = a12.mul(a3); // a^15
+        let a30 = a15.mul(a15); // a^30
+        let a60 = a30.mul(a30); // a^60
+        let a63 = a60.mul(a3); // a^63
+        let a126 = a63.mul(a63); // a^126
+        let a252 = a126.mul(a126); // a^252
+        let a254 = a252.mul(a2); // a^254
 
         Some(a254)
     }
@@ -123,8 +131,8 @@ impl GF {
 /// Computes inverses of multiple elements with only ONE actual inversion.
 ///
 /// Algorithm:
-/// 1. Compute cumulative products: p[i] = a[0] * a[1] * ... * a[i]
-/// 2. Compute inv(p[n-1]) once
+/// 1. Compute cumulative products: `p[i] = a[0] * a[1] * ... * a[i]`
+/// 2. Compute `inv(p[n-1])` once
 /// 3. Derive individual inverses in reverse order
 ///
 /// Cost: 1 inv() + 3*(n-1) mul() instead of n * inv()
@@ -134,16 +142,24 @@ impl GF {
 #[inline]
 pub fn batch_inv(inputs: &[GF], outputs: &mut [GF]) -> Option<()> {
     let n = inputs.len();
-    if n == 0 { return Some(()); }
-    if outputs.len() < n { return None; }
+    if n == 0 {
+        return Some(());
+    }
+    if outputs.len() < n {
+        return None;
+    }
 
     // Check for zeros and compute cumulative products
     // Using outputs as scratch space for products
     outputs[0] = inputs[0];
-    if inputs[0].0 == 0 { return None; }
+    if inputs[0].0 == 0 {
+        return None;
+    }
 
     for i in 1..n {
-        if inputs[i].0 == 0 { return None; }
+        if inputs[i].0 == 0 {
+            return None;
+        }
         outputs[i] = outputs[i - 1].mul(inputs[i]);
     }
 
@@ -167,13 +183,14 @@ pub fn batch_inv(inputs: &[GF], outputs: &mut [GF]) -> Option<()> {
 /// Batch inversion with stack-allocated buffer (max 255 elements)
 /// Returns the number of inverses computed.
 #[inline]
-pub fn batch_inv_stack<const N: usize>(
-    inputs: &[GF],
-    outputs: &mut [GF; N],
-) -> Option<usize> {
+pub fn batch_inv_stack<const N: usize>(inputs: &[GF], outputs: &mut [GF; N]) -> Option<usize> {
     let n = inputs.len();
-    if n == 0 { return Some(0); }
-    if n > N { return None; }
+    if n == 0 {
+        return Some(0);
+    }
+    if n > N {
+        return None;
+    }
 
     batch_inv(inputs, &mut outputs[..n])?;
     Some(n)
@@ -346,7 +363,7 @@ mod tests {
     #[test]
     fn test_gf_clone_copy() {
         let a = GF(0x42);
-        let b = a;       // Copy
+        let b = a; // Copy
         let c = a.clone(); // Clone
         assert_eq!(a, b);
         assert_eq!(a, c);

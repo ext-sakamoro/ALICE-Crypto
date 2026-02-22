@@ -4,32 +4,87 @@
 //!
 //! > "Encryption guarantees safety against time. Information theory guarantees safety against God."
 //!
-//! ## Primitives
+//! ALICE-Crypto provides three complementary cryptographic primitives designed
+//! for the ALICE P2P ecosystem: secret splitting, hashing, and authenticated
+//! encryption. All operations are constant-time and `no_std`-compatible.
 //!
-//! - **SSS (Shamir's Secret Sharing)**: Split secrets into K-of-N shards
-//! - **BLAKE3**: High-performance cryptographic hashing
-//! - **XChaCha20-Poly1305**: Authenticated stream encryption
+//! ## Modules
+//!
+//! | Module | Description |
+//! |--------|-------------|
+//! | [`gf256`] | GF(2^8) Galois field arithmetic — branchless, constant-time mul and inv |
+//! | [`sss`] | Shamir's Secret Sharing — K-of-N threshold splitting with Montgomery batch inv |
+//! | `hash` | BLAKE3 hashing — content addressing, keyed MAC, key derivation |
+//! | [`stream`] | XChaCha20-Poly1305 — authenticated encryption with zero-allocation in-place API |
+//!
+//! ## Cargo Features
+//!
+//! | Feature | Default | Description |
+//! |---------|---------|-------------|
+//! | `std` | yes | Standard library support (OS RNG, std I/O) |
+//! | `alloc` | no | Heap allocation without std (embedded / WASM) |
+//! | `ffi` | no | C-compatible cdylib exports (implies `std`) |
+//!
+//! ## Quick Start
+//!
+//! ```rust
+//! use alice_crypto::{sss, Key, seal, open};
+//!
+//! // Generate a master key
+//! let master_key = Key::generate().unwrap();
+//!
+//! // Split into 5 shards, require 3 to recover
+//! let shards = sss::split(&master_key.0, 5, 3).unwrap();
+//!
+//! // Encrypt data
+//! let encrypted = seal(&master_key, b"Top secret ALICE data").unwrap();
+//!
+//! // Recover key from any 3 shards
+//! let recovered = sss::recover(&[
+//!     shards[0].clone(), shards[2].clone(), shards[4].clone()
+//! ]).unwrap();
+//! let mut key_arr = [0u8; 32];
+//! key_arr.copy_from_slice(&recovered);
+//!
+//! // Decrypt
+//! let data = open(&Key::from_bytes(key_arr), &encrypted).unwrap();
+//! assert_eq!(&data, b"Top secret ALICE data");
+//! ```
+//!
+//! ## Security Properties
+//!
+//! | Primitive | Security Model | Quantum Resistant |
+//! |-----------|---------------|-------------------|
+//! | SSS | Information-theoretic (K-1 shards reveal zero information) | Yes |
+//! | BLAKE3 | Computational (256-bit preimage resistance) | Partially (128-bit post-quantum) |
+//! | XChaCha20-Poly1305 | Computational (256-bit key, 192-bit nonce) | No (symmetric = 128-bit post-quantum) |
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
 
 pub mod gf256;
-pub mod sss;
 pub mod hash;
+pub mod sss;
 pub mod stream;
 
 // Re-exports
-pub use gf256::{GF, batch_inv, batch_inv_stack};
-pub use sss::{Shard, SssError, split, recover};
-pub use hash::{Hash, Hasher, hash, keyed_hash, derive_key};
+pub use gf256::{batch_inv, batch_inv_stack, GF};
+pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
+pub use sss::{recover, split, Shard, SssError};
 pub use stream::{
-    Key, Nonce, CipherError, TAG_SIZE,
+    decrypt_in_place,
+    decrypt_in_place_aead,
     // Core: Zero-allocation in-place APIs
-    encrypt_in_place, decrypt_in_place,
-    encrypt_in_place_aead, decrypt_in_place_aead,
+    encrypt_in_place,
+    encrypt_in_place_aead,
+    open,
     // Convenience: Allocating wrappers
-    seal, open,
+    seal,
+    CipherError,
+    Key,
+    Nonce,
+    TAG_SIZE,
 };
 
 /// Version
@@ -52,11 +107,8 @@ mod tests {
         let encrypted = seal(&master_key, data).unwrap();
 
         // 4. Recover master key from any 3 shards
-        let recovered_key_bytes = recover(&[
-            shards[1].clone(),
-            shards[3].clone(),
-            shards[4].clone()
-        ]).unwrap();
+        let recovered_key_bytes =
+            recover(&[shards[1].clone(), shards[3].clone(), shards[4].clone()]).unwrap();
 
         let mut key_arr = [0u8; 32];
         key_arr.copy_from_slice(&recovered_key_bytes);
