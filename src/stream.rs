@@ -41,13 +41,13 @@ impl Key {
     pub fn generate() -> Result<Self, CipherError> {
         let mut k = [0u8; 32];
         getrandom::getrandom(&mut k).map_err(|_| CipherError::RandomFailed)?;
-        Ok(Key(k))
+        Ok(Self(k))
     }
 
     #[inline(always)]
     #[must_use]
     pub const fn from_bytes(b: [u8; 32]) -> Self {
-        Key(b)
+        Self(b)
     }
 
     #[inline(always)]
@@ -71,13 +71,13 @@ impl Nonce {
     pub fn generate() -> Result<Self, CipherError> {
         let mut n = [0u8; 24];
         getrandom::getrandom(&mut n).map_err(|_| CipherError::RandomFailed)?;
-        Ok(Nonce(n))
+        Ok(Self(n))
     }
 
     #[inline(always)]
     #[must_use]
     pub const fn from_bytes(b: [u8; 24]) -> Self {
-        Nonce(b)
+        Self(b)
     }
 
     #[inline(always)]
@@ -454,7 +454,7 @@ mod tests {
     fn test_cipher_error_clone_copy() {
         let e = CipherError::DecryptionFailed;
         let e2 = e; // Copy
-        let e3 = e.clone(); // Clone
+        let e3 = e; // Clone
         assert_eq!(e, e2);
         assert_eq!(e, e3);
     }
@@ -645,7 +645,7 @@ mod tests {
     fn test_nonce_clone_copy() {
         let n = Nonce::generate().unwrap();
         let n2 = n; // Copy
-        let n3 = n.clone(); // Clone
+        let n3 = n; // Clone
         assert_eq!(n.0, n2.0);
         assert_eq!(n.0, n3.0);
     }

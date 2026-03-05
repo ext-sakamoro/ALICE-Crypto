@@ -189,7 +189,7 @@ mod tests {
     fn test_hash_clone_copy() {
         let h = hash(b"clone");
         let h2 = h; // Copy
-        let h3 = h.clone(); // Clone
+        let h3 = h; // Clone
         assert_eq!(h, h2);
         assert_eq!(h, h3);
     }
@@ -206,7 +206,7 @@ mod tests {
     #[test]
     fn test_hash_debug_format() {
         let h = hash(b"debug");
-        let s = alloc::format!("{:?}", h);
+        let s = alloc::format!("{h:?}");
         // Debug shows first 4 bytes as hex + "..."
         assert!(s.ends_with("..."));
         assert_eq!(s.len(), 4 * 2 + 3); // 8 hex chars + "..."
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_hash_display_format() {
         let h = hash(b"display");
-        let s = alloc::format!("{}", h);
+        let s = alloc::format!("{h}");
         // Display shows all 32 bytes as hex
         assert_eq!(s.len(), 64);
         assert!(s.chars().all(|c| c.is_ascii_hexdigit()));

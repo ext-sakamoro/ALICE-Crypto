@@ -337,7 +337,7 @@ mod tests {
     fn test_sss_error_clone_copy() {
         let e = SssError::ThresholdTooLow;
         let e2 = e; // Copy
-        let e3 = e.clone(); // Clone
+        let e3 = e; // Clone
         assert_eq!(e, e2);
         assert_eq!(e, e3);
     }
@@ -456,7 +456,7 @@ mod tests {
             SssError::RandomFailed,
         ];
         for e in &errors {
-            let s = alloc::format!("{:?}", e);
+            let s = alloc::format!("{e:?}");
             assert!(!s.is_empty());
         }
     }

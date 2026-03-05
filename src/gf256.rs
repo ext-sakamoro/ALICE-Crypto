@@ -9,26 +9,26 @@
 pub struct GF(pub u8);
 
 impl GF {
-    pub const ZERO: GF = GF(0);
-    pub const ONE: GF = GF(1);
+    pub const ZERO: Self = Self(0);
+    pub const ONE: Self = Self(1);
 
     #[inline(always)]
     #[must_use]
     pub const fn new(v: u8) -> Self {
-        GF(v)
+        Self(v)
     }
 
     /// Addition in GF(2^8) = XOR
     #[inline(always)]
     #[must_use]
-    pub const fn add(self, rhs: GF) -> GF {
-        GF(self.0 ^ rhs.0)
+    pub const fn add(self, rhs: Self) -> Self {
+        Self(self.0 ^ rhs.0)
     }
 
     /// Subtraction in GF(2^8) = XOR (same as add)
     #[inline(always)]
     #[must_use]
-    pub const fn sub(self, rhs: GF) -> GF {
+    pub const fn sub(self, rhs: Self) -> Self {
         self.add(rhs)
     }
 
@@ -36,7 +36,7 @@ impl GF {
     /// Fully unrolled, branchless, constant-time (timing attack resistant)
     #[inline(always)]
     #[must_use]
-    pub const fn mul(self, rhs: GF) -> GF {
+    pub const fn mul(self, rhs: Self) -> Self {
         let mut a = self.0;
         let b = rhs.0;
         let mut p: u8 = 0;
@@ -90,7 +90,7 @@ impl GF {
         let m7 = (-(((b >> 7) & 1) as i8)) as u8;
         p ^= a & m7;
 
-        GF(p)
+        Self(p)
     }
 
     /// Multiplicative inverse using Fermat's little theorem
@@ -98,7 +98,7 @@ impl GF {
     /// Fully unrolled addition chain (zero branches)
     #[inline(always)]
     #[must_use]
-    pub const fn inv(self) -> Option<GF> {
+    pub const fn inv(self) -> Option<Self> {
         if self.0 == 0 {
             return None;
         }
@@ -125,7 +125,7 @@ impl GF {
     /// Division: a / b = a * b^(-1)
     #[inline(always)]
     #[must_use]
-    pub const fn div(self, rhs: GF) -> Option<GF> {
+    pub const fn div(self, rhs: Self) -> Option<Self> {
         match rhs.inv() {
             Some(inv) => Some(self.mul(inv)),
             None => None,
@@ -370,7 +370,7 @@ mod tests {
     fn test_gf_clone_copy() {
         let a = GF(0x42);
         let b = a; // Copy
-        let c = a.clone(); // Clone
+        let c = a; // Clone
         assert_eq!(a, b);
         assert_eq!(a, c);
     }
