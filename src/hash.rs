@@ -13,16 +13,22 @@ impl Hash {
     pub const SIZE: usize = 32;
 
     #[inline(always)]
-    pub const fn as_bytes(&self) -> &[u8; 32] { &self.0 }
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
 
     #[inline(always)]
-    pub const fn into_bytes(self) -> [u8; 32] { self.0 }
+    #[must_use]
+    pub const fn into_bytes(self) -> [u8; 32] {
+        self.0
+    }
 }
 
 impl core::fmt::Debug for Hash {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for b in &self.0[..4] {
-            write!(f, "{:02x}", b)?;
+            write!(f, "{b:02x}")?;
         }
         f.write_str("...")
     }
@@ -31,7 +37,7 @@ impl core::fmt::Debug for Hash {
 impl core::fmt::Display for Hash {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         for b in &self.0 {
-            write!(f, "{:02x}", b)?;
+            write!(f, "{b:02x}")?;
         }
         Ok(())
     }
@@ -39,6 +45,7 @@ impl core::fmt::Display for Hash {
 
 /// Hash data using BLAKE3
 #[inline(always)]
+#[must_use]
 pub fn hash(data: &[u8]) -> Hash {
     Hash(*blake3::hash(data).as_bytes())
 }
@@ -48,30 +55,44 @@ pub struct Hasher(blake3::Hasher);
 
 impl Hasher {
     #[inline(always)]
-    pub fn new() -> Self { Self(blake3::Hasher::new()) }
+    #[must_use]
+    pub fn new() -> Self {
+        Self(blake3::Hasher::new())
+    }
 
     #[inline(always)]
-    pub fn update(&mut self, data: &[u8]) { self.0.update(data); }
+    pub fn update(&mut self, data: &[u8]) {
+        self.0.update(data);
+    }
 
     #[inline(always)]
-    pub fn finalize(&self) -> Hash { Hash(*self.0.finalize().as_bytes()) }
+    #[must_use]
+    pub fn finalize(&self) -> Hash {
+        Hash(*self.0.finalize().as_bytes())
+    }
 
     #[inline(always)]
-    pub fn reset(&mut self) { self.0.reset(); }
+    pub fn reset(&mut self) {
+        self.0.reset();
+    }
 }
 
 impl Default for Hasher {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 /// Keyed hash (MAC)
 #[inline(always)]
+#[must_use]
 pub fn keyed_hash(key: &[u8; 32], data: &[u8]) -> Hash {
     Hash(*blake3::keyed_hash(key, data).as_bytes())
 }
 
 /// Derive key from context string and input
 #[inline(always)]
+#[must_use]
 pub fn derive_key(context: &str, input: &[u8]) -> [u8; 32] {
     blake3::derive_key(context, input)
 }
@@ -167,7 +188,7 @@ mod tests {
     #[test]
     fn test_hash_clone_copy() {
         let h = hash(b"clone");
-        let h2 = h;       // Copy
+        let h2 = h; // Copy
         let h3 = h.clone(); // Clone
         assert_eq!(h, h2);
         assert_eq!(h, h3);

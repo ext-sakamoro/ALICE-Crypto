@@ -13,18 +13,21 @@ impl GF {
     pub const ONE: GF = GF(1);
 
     #[inline(always)]
+    #[must_use]
     pub const fn new(v: u8) -> Self {
         GF(v)
     }
 
     /// Addition in GF(2^8) = XOR
     #[inline(always)]
+    #[must_use]
     pub const fn add(self, rhs: GF) -> GF {
         GF(self.0 ^ rhs.0)
     }
 
     /// Subtraction in GF(2^8) = XOR (same as add)
     #[inline(always)]
+    #[must_use]
     pub const fn sub(self, rhs: GF) -> GF {
         self.add(rhs)
     }
@@ -32,6 +35,7 @@ impl GF {
     /// Multiplication in GF(2^8) using Russian Peasant algorithm
     /// Fully unrolled, branchless, constant-time (timing attack resistant)
     #[inline(always)]
+    #[must_use]
     pub const fn mul(self, rhs: GF) -> GF {
         let mut a = self.0;
         let b = rhs.0;
@@ -93,6 +97,7 @@ impl GF {
     /// a^(-1) = a^254 in GF(2^8)
     /// Fully unrolled addition chain (zero branches)
     #[inline(always)]
+    #[must_use]
     pub const fn inv(self) -> Option<GF> {
         if self.0 == 0 {
             return None;
@@ -119,6 +124,7 @@ impl GF {
 
     /// Division: a / b = a * b^(-1)
     #[inline(always)]
+    #[must_use]
     pub const fn div(self, rhs: GF) -> Option<GF> {
         match rhs.inv() {
             Some(inv) => Some(self.mul(inv)),
@@ -135,7 +141,7 @@ impl GF {
 /// 2. Compute `inv(p[n-1])` once
 /// 3. Derive individual inverses in reverse order
 ///
-/// Cost: 1 inv() + 3*(n-1) mul() instead of n * inv()
+/// Cost: 1 `inv()` + 3*(n-1) `mul()` instead of n * `inv()`
 /// For n=10: 1 + 27 = 28 mul-equivalents vs 10 * 11 = 110 mul-equivalents
 ///
 /// Returns None if any input is zero.

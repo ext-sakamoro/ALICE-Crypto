@@ -7,7 +7,7 @@
 //! - Split: Buffered RNG (minimized syscalls), Stack allocations only
 //! - Recover: Montgomery Batch Inversion, O(K) reconstruction
 
-use crate::gf256::{GF, batch_inv};
+use crate::gf256::{batch_inv, GF};
 
 /// A share of the secret
 #[derive(Clone, Debug)]
@@ -52,15 +52,30 @@ const RNG_BUF_SIZE: usize = 1024;
 /// let shards = alice_crypto::sss::split(secret, 5, 3).unwrap();
 /// // Distribute shards[0..5] to different locations
 /// ```
+///
+/// # Errors
+///
+/// Returns [`SssError`] if the secret is empty or parameters are invalid.
 pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
-    if secret.is_empty() { return Err(SssError::EmptySecret); }
-    if k < 2 { return Err(SssError::ThresholdTooLow); }
-    if k > n { return Err(SssError::ThresholdTooHigh); }
-    if n == 0 { return Err(SssError::TooManyShards); }
+    if secret.is_empty() {
+        return Err(SssError::EmptySecret);
+    }
+    if k < 2 {
+        return Err(SssError::ThresholdTooLow);
+    }
+    if k > n {
+        return Err(SssError::ThresholdTooHigh);
+    }
+    if n == 0 {
+        return Err(SssError::TooManyShards);
+    }
 
     // Pre-allocate output shards
     let mut shards: Vec<Shard> = (1..=n)
-        .map(|x| Shard { x, y: Vec::with_capacity(secret.len()) })
+        .map(|x| Shard {
+            x,
+            y: Vec::with_capacity(secret.len()),
+        })
         .collect();
 
     // Random number generator buffer
@@ -118,11 +133,19 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
 ///
 /// Uses Lagrange interpolation at x=0.
 /// Ultra Deep Fried: O(K² + L·K) with Montgomery Batch Inversion
+///
+/// # Errors
+///
+/// Returns [`SssError`] if there are not enough shards or they have inconsistent lengths.
 pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
-    if shards.is_empty() { return Err(SssError::NotEnoughShards); }
+    if shards.is_empty() {
+        return Err(SssError::NotEnoughShards);
+    }
 
     let k = shards.len();
-    if k > 255 { return Err(SssError::TooManyShards); }
+    if k > 255 {
+        return Err(SssError::TooManyShards);
+    }
 
     // Check for duplicate X values O(K^2) check, tiny for K<255
     for i in 0..k {
@@ -160,8 +183,7 @@ pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
 
     // 2. Batch invert all K denominators (Only 1 division here!)
     let mut denom_inv = [GF::ZERO; 255];
-    batch_inv(&denom_products[..k], &mut denom_inv[..k])
-        .ok_or(SssError::DuplicateX)?;
+    batch_inv(&denom_products[..k], &mut denom_inv[..k]).ok_or(SssError::DuplicateX)?;
 
     // 3. Compute final basis weights: w_i = (product_{j!=i} xj) * inv(product_{j!=i} (xi-xj))
     let mut basis = [GF::ZERO; 255];
@@ -240,7 +262,8 @@ mod tests {
         assert_eq!(shards.len(), 5);
 
         // Recover with exactly K shards
-        let recovered = recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
+        let recovered =
+            recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
         assert_eq!(&recovered, secret);
     }
 
@@ -284,7 +307,8 @@ mod tests {
         // Test with larger data to exercise buffered RNG
         let secret = vec![0xABu8; 2048];
         let shards = split(&secret, 5, 3).unwrap();
-        let recovered = recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
+        let recovered =
+            recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
         assert_eq!(recovered, secret);
     }
 
@@ -312,7 +336,7 @@ mod tests {
     #[test]
     fn test_sss_error_clone_copy() {
         let e = SssError::ThresholdTooLow;
-        let e2 = e;       // Copy
+        let e2 = e; // Copy
         let e3 = e.clone(); // Clone
         assert_eq!(e, e2);
         assert_eq!(e, e3);
