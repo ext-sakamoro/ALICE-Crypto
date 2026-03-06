@@ -78,12 +78,18 @@ extern crate alloc;
 
 pub mod gf256;
 pub mod hash;
+pub mod kdf;
+pub mod keystore;
+pub mod signature;
 pub mod sss;
 pub mod stream;
 
 // Re-exports
 pub use gf256::{batch_inv, batch_inv_stack, GF};
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
+pub use kdf::{password_stretch, HkdfBlake3, Prk};
+pub use keystore::{KeyEntry, KeyId, KeyStore, KeyStoreError};
+pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};
 pub use sss::{recover, split, Shard, SssError};
 pub use stream::{
     decrypt_in_place,
