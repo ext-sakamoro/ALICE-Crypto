@@ -1,0 +1,38 @@
+[package]
+name = "alice-crypto-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+arbitrary = { version = "1", features = ["derive"] }
+
+[dependencies.alice-crypto]
+path = ".."
+features = ["std"]
+
+# cargo-machete false-positive 予防 (canonical [[reference_alice_ci_canonical_template]] 罠 #3)
+[package.metadata.cargo-machete]
+ignored = ["libfuzzer-sys"]
+
+[[bin]]
+name = "fuzz_hash_input"
+path = "fuzz_targets/fuzz_hash_input.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_encrypt_decrypt_roundtrip"
+path = "fuzz_targets/fuzz_encrypt_decrypt_roundtrip.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_signature_verify"
+path = "fuzz_targets/fuzz_signature_verify.rs"
+doc = false
+
+[workspace]
+members = ["."]

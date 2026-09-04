@@ -1,0 +1,16 @@
+name: 'ALICE-Crypto Optional Bridge Stubs (no-op)'
+description: |
+  ALICE-Crypto has zero sibling path dependencies (blake3 / chacha20poly1305 /
+  getrandom はいずれも crates.io の外部 crate)、alice-* sibling stub 生成は不要。
+  この composite action は canonical CI template との構造互換性のため no-op を返す。
+
+  Canonical CI template: [[reference_alice_ci_canonical_template]]
+  Pattern: ALICE-LLM (0-sibling no-op) と同一構造
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        echo "ALICE-Crypto: no sibling path deps, skipping stub generation (no-op)"
