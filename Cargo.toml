@@ -4,11 +4,10 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Information-theoretic security primitives for ALICE"
-license = "AGPL-3.0"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/ext-sakamoro/ALICE-Crypto"
 keywords = ["crypto", "sss", "shamir", "blake3", "no_std"]
 categories = ["cryptography", "no-std"]
-publish = false
 
 [lib]
 crate-type = ["lib", "cdylib"]
