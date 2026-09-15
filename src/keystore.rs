@@ -4,7 +4,7 @@
 //! 鍵データはドロップ時にゼロクリアされる。
 
 #[cfg(not(feature = "std"))]
-use alloc::{string::String, vec::Vec};
+use alloc::vec::Vec;
 
 use alloc::collections::BTreeMap;
 

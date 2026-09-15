@@ -1,0 +1,7 @@
+# Rust toolchain pin (feedback_clippy_rust_version_drift 準拠)
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+# no_std 検証用 bare-metal target (CI no_std job + local、pinned toolchain 側に install)
+targets = ["thumbv7em-none-eabihf"]
+profile = "minimal"

@@ -2,6 +2,16 @@
 
 All notable changes to ALICE-Crypto are documented here.
 
+## [Unreleased]
+
+### Added
+- `custom-rng` feature (`getrandom/custom`) — `getrandom` が非対応の bare-metal target (`thumbv7em-none-eabihf` 等) 向け、最終 binary で `register_custom_getrandom!` を登録する (README no_std 節) それまで crates.io `no-std` category を掲げつつ bare-metal では `getrandom` の「target is not supported」で build 不能だった
+- `ci.yml` (それまで fuzz / security-audit のみ): test (default + `std,ffi`) / clippy `--all-targets -D warnings` 2 variant / `no_std` job (host rlib `alloc` + bare-metal thumbv7em `alloc,custom-rng` + clippy-driver wrapper、`crate-type` に cdylib を含むため `cargo rustc --crate-type rlib`) / `feature-powerset` (std 固定 depth 2) / fmt / doc `-D warnings` / actionlint、rust-cache
+- `rust-toolchain.toml` (1.98.1 pin + thumbv7em target)
+
+### Fixed
+- `keystore.rs` の no_std build で unused import (`String`)
+
 ## [0.1.0] — 2026-02-23
 
 ### Added

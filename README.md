@@ -52,6 +52,15 @@ For `no_std` environments (embedded, RTOS, WASM):
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc"] }
 ```
 
+Bare-metal targets that `getrandom` does not support (e.g. `thumbv7em-none-eabihf`)
+additionally need the `custom-rng` feature and a registered entropy source in the
+final binary (`getrandom::register_custom_getrandom!`, see the getrandom docs):
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.1", default-features = false, features = ["alloc", "custom-rng"] }
+```
+
 ## Usage
 
 ### Secret Sharing (SSS)

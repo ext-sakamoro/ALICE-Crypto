@@ -17,6 +17,9 @@ default = ["std"]
 std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
 alloc = ["blake3/traits-preview"]
 ffi = ["std"]
+# bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
+# 詳細 https://docs.rs/getrandom/0.2/getrandom/macro.register_custom_getrandom.html
+custom-rng = ["getrandom/custom"]
 
 [dependencies]
 blake3 = { version = "1.5", default-features = false }
