@@ -8,7 +8,7 @@ name: CI
 #   なので `custom-rng` feature (getrandom/custom) 込みで build (rust-toolchain.toml の `targets` で
 #   pinned toolchain 側に target install)
 # - feature-powerset: std 固定 depth 2 (std なしの組合せは cdylib link 要求で落ちるため no_std job 側で検証)
-# - sibling path dep なし (alice-stubs は no-op、canonical 構成維持のため呼ぶ)
+# - sibling path dep なし (2026-09-16: no-op だった stub action は撤去)
 
 on:
   push:
@@ -27,8 +27,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Create ALICE optional bridge stubs
-        uses: ./.github/actions/alice-stubs
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Test (default)
@@ -41,8 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Create ALICE optional bridge stubs
-        uses: ./.github/actions/alice-stubs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -57,8 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Create ALICE optional bridge stubs
-        uses: ./.github/actions/alice-stubs
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -81,8 +75,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Create ALICE optional bridge stubs
-        uses: ./.github/actions/alice-stubs
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install cargo-hack
@@ -106,8 +98,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Create ALICE optional bridge stubs
-        uses: ./.github/actions/alice-stubs
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Doc (full native feature set)
