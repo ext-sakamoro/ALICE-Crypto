@@ -106,12 +106,19 @@ pub use stream::{
     TAG_SIZE,
 };
 
-/// Version
-pub const VERSION: &str = "0.1.0";
+/// Version (always the built crate's `CARGO_PKG_VERSION`)
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_version_matches_cargo_pkg_version() {
+        // VERSION は Cargo.toml の version と常に一致する (手書き literal は drift する)
+        assert!(!VERSION.is_empty());
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+    }
 
     #[test]
     fn test_integration_sss_encrypt() {
