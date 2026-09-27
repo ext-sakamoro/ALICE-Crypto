@@ -279,15 +279,19 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 
 ## License
 
-**GNU AGPLv3** (Affero General Public License v3.0)
+`AGPL-3.0-or-later OR LicenseRef-Commercial` — dual-licensed. Pick either.
 
-This library is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation.
+| Option | Terms | Use it when |
+|--------|-------|-------------|
+| **AGPL-3.0-or-later** | [LICENSE-AGPL](LICENSE-AGPL) — free, no reporting obligation | Your project is itself AGPL-compatible open source, or you are only using it internally |
+| **Commercial License** | [LICENSE-COMMERCIAL.md](LICENSE-COMMERCIAL.md) — paid, removes the copyleft | Closed-source product, proprietary SaaS, edge / firmware distribution, plugin redistribution, or a platform NDA that forbids source disclosure |
 
-**Why AGPL for Crypto?**
-While mathematical formulas are public domain, this specific **High-Performance Implementation (Deep Fried Rust)** is protected. If you use this library to provide a service (e.g., a Key Management System), you must release your source code.
+AGPL is a strong copyleft: a product, firmware image, or service that links
+`alice-crypto` and is distributed or served to users must be released under the AGPL
+as well. That is intentional for the open ecosystem, and the Commercial
+License exists for the cases where it is not something you are able to do.
 
-For proprietary/commercial use (e.g., embedding in closed-source games or enterprise security appliances), please contact:
-**https://extoria.co.jp/en**
+Commercial licence enquiries: <contact@extoria.co.jp>
 
 ## Author
 
