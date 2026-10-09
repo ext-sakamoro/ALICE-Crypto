@@ -277,6 +277,35 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 | Replay Attacks | 192-bit nonce with AEAD |
 | Timing Attacks | Per-operation, see **Timing behaviour** |
 
+## Differential privacy (`dp`)
+
+Reproducibility and privacy look like opposites — a mechanism wants noise the
+attacker cannot predict, an audit wants the same noise twice — and they stop
+being opposites once the determinism is anchored to a **secret key** instead of
+a public value like a clock:
+
+```rust
+use alice_crypto::dp::{dp_count, SecureRng};
+
+let mut rng = SecureRng::from_key(key_from_your_key_store);
+let noisy = dp_count(1_000, 1.0, &mut rng)?;   // count + Lap(1/epsilon)
+```
+
+- Every constructor takes a 32-byte key. The one that does not —
+  `SecureRng::try_from_entropy()` — takes it from the OS and **fails** rather
+  than falling back to anything guessable
+- `dp_count` / `dp_sum` take ε and derive the Laplace scale themselves. ⚠️ An ε
+  that is accepted and then ignored is worse than no ε at all, and taking the
+  scale as a parameter is how that happens
+- The keystream is RFC 8439 ChaCha20 (from the `chacha20` crate this crate
+  already depended on, rather than a second hand-written copy), and the `ln` in
+  the inverse transform is `alice-det-math`'s bit-exact one — so the same key
+  gives the same noise on every platform, which is what a replay needs
+- ⚠️ **Known limit:** floating-point inverse-transform sampling is subject to
+  Mironov's 2012 attack, so the ε here is the value for ideal real arithmetic,
+  not a machine-level guarantee. A snapping mechanism is not implemented yet and
+  the module doc says so
+
 ## Timing behaviour
 
 There is deliberately **no** single "all operations are constant-time" claim:
@@ -309,7 +338,8 @@ measured.
 
 Secrets are zeroed on drop through `zeroize` (volatile writes plus a fence, so
 the stores are not optimised away as dead): `SigningKey`, `VerifyingKey`,
-`stream::Key`, `kdf::Prk`, `keystore::KeyEntry.key_data`, and `sss::Shard.y`.
+`stream::Key`, `kdf::Prk`, `keystore::KeyEntry.key_data`, `sss::Shard.y`, and
+`dp::SecureRng` (both its key and its 64-byte keystream buffer).
 `sss::split` also clears the stack buffers that held the secret bytes and the
 random polynomial coefficients before it returns.
 

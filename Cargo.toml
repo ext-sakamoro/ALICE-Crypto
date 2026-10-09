@@ -14,7 +14,7 @@ crate-type = ["lib", "cdylib"]
 
 [features]
 default = ["std"]
-std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
+std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std", "alice-det-math/std"]
 alloc = ["blake3/traits-preview"]
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
@@ -24,6 +24,13 @@ custom-rng = ["getrandom/custom"]
 [dependencies]
 blake3 = { version = "1.5", default-features = false }
 chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
+# 差分プライバシーの noise 源 (`dp`) が素の ChaCha20 keystream を使う
+# chacha20poly1305 が既に引いているので依存木は増えない ⚠️ 手書きの block 関数を
+# 持つと同じ法則の写しが 2 つになるので、実装は 1 つに寄せる
+chacha20 = { version = "0.9", default-features = false }
+# `dp` の逆関数法が使う ln (bit 一致・1 ulp 保証) platform libm だと同じ鍵でも
+# 機械ごとに noise が変わり、replay と監査が成立しない
+alice-det-math = { version = "0.4", default-features = false }
 getrandom = { version = "0.2", default-features = false }
 # 秘密を落とす時の 0 埋めに使う 手書きの `*b = 0` は「以降読まれない書き込み」として
 # 消されうるので、volatile write + fence を持つ実装に任せる

@@ -4,6 +4,15 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+### Added
+- **`dp` module — 差分プライバシーの Laplace noise を鍵基準の CSPRNG で生成する** 再現性と秘匿は「決定論の基準を何に置くか」で両立する: 公開値 (時刻 / 連番) を基準にすると攻撃者も同じ値を推測して noise を引き去れるが、**秘密の鍵**を基準にすれば同じ鍵で同じ列が出て (replay / 監査 / 試験)、鍵を知らない側からは予測も再現もできない ⚠️ **本 module は同日に ALICE-* 2 crate で見つかった同型の欠陥のために作った**: `xorshift64` を時刻 seed で回し状態を呼び出し側に返す形で、(a) 時刻は推測できるので鍵が総当たりできる (b) **xorshift は F2 線形なので出力 64 bit から状態が線形代数で解け、総当たりすら不要** 入れたもの: `SecureRng` (RFC 8439 ChaCha20 の keystream、鍵と buffer は drop 時に `zeroize`) / `DpNoise` (Laplace、逆関数法、符号は別の keystream bit から取る — `u` を流用すると符号と大きさが相関して片側の裾が薄くなる) / `dp_count` / `dp_sum` (**乱数源だけを受け取り scale を ε から導く** ⚠️ scale を引数にすると、呼び出し側の ε と実際の noise が食い違っても誰も気付かない = 配線の変異が恒等になる) / 不正な scale・ε・sensitivity は `Err`
+- 依存 2 本: `chacha20` (`chacha20poly1305` が既に引いているので依存木は増えない ⚠️ **手書きの block 関数を持つと同じ法則の写しが 2 つになる**ので実装は 1 つに寄せた) と `alice-det-math` (`ln64` は bit 一致・1 ulp 保証、platform libm では同じ鍵でも機械ごとに noise が変わり replay が成立しない)
+- `tests/dp_noise_oracle.rs` (10 test) + `src/dp.rs` の inline test 2 本 — 固定するのは 3 性質 (予測不能性 / 再現性 / 分布) 期待値の出所は **Laplace の定義** (平均 0、分散 2b²) と **RFC 8439 § 2.3.2 の keystream** (RFC 本文からの転記、実装の出力は 1 つも使っていない) 変異 **8/8 red** ⚠️ **うち 1 件は最初 生存した** — 一様値の 0 ガードは `bits == 0` が 2⁻⁵³ の事象なので 20 万回の抽出では 1 度も通らず、標本抽出の試験では歯が無かった ⇒ 変換を純関数 `open01_from_bits` に切り出して `0` を直接渡す inline test を置いた
+- README に `Differential privacy (dp)` 節、`src/lib.rs` の timing 表に `dp` の行
+
+### Fixed
+- 一様値の doc が `(0, 1]` と書いていたが **1.0 は返らない** (53 bit は `0 … 2^53-1` なので上端は `1 - 2^-53`) 実際の範囲 `[2^-53, 1 - 2^-53]` に訂正し、上端を assert する test を置いた (移送元の doc も同じ誤りを持っていた)
+
 ### Security
 - **`Signature` の `==` が定数時間になった (breaking: `PartialEq` / `Eq` の derive を手書き impl に置換)** 導出された `==` は 32 byte の tag を先頭から比べて不一致の位置で打ち切るので、**一致した先頭 byte 数が実行時間に出ていた** (MAC tag を 1 byte ずつ合わせ込む偽造の足場) crate 自身の `verify` は定数時間比較を使っていたので、**危なかったのは「便利に見える方」**だけ 手書きの `impl PartialEq` が同じ比較関数を通る 値の意味は不変 (同じ bytes が等しい)
 - **GF(2^8) の逆元・除算・batch 逆元から値依存の早期脱出を除去** `inv` は `if self.0 == 0 { return None }`、`batch_inv` は loop の中で要素ごとに零判定して `return None` していたため、**反復回数が「最初の 0 の位置」に依存**していた `batch_inv` は走る積が 0 かどうかで「どれかが 0」を判定する (GF(2^8) は体で零因子を持たないので同値、追加の計算は 0) 乗算回数は `inputs.len()` のみに依存する

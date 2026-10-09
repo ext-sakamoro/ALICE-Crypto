@@ -52,6 +52,10 @@ SECRET_TYPES = [
     "Key",
     "KeyEntry",
     "Shard",
+    # `dp` module: どちらも 32 byte の鍵を持つ 鍵が等しいかを `==` で比べる経路を
+    # 作らせない (鍵の一致判定は定数時間でなければ鍵を 1 byte ずつ特定できる)
+    "SecureRng",
+    "DpNoise",
 ]
 # 定数時間を名乗る関数 (`src/lib.rs` § Timing behaviour の表と対応させる)
 # ⚠️ 実在しない名前を並べても検査は増えない (黙って 0 件になる) ので、

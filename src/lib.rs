@@ -42,6 +42,7 @@
 //! | `hash::*` / [`kdf`] | input length, and the requested output length / iteration count |
 //! | [`stream`] encrypt / decrypt | buffer and associated-data length |
 //! | [`keystore`] lookup / revoke / purge | number of stored entries (key *ids* and timestamps are public metadata, not secrets) |
+//! | [`dp`] noise generation | the number of samples drawn — not the key and not the values produced (the inverse transform does the same work every time: one keystream word for the sign, one for the magnitude, one `ln`) |
 //!
 //! Caveats, stated rather than glossed over:
 //!
@@ -63,6 +64,7 @@
 //! | [`sss`] | Shamir's Secret Sharing — K-of-N threshold splitting with Montgomery batch inv |
 //! | `hash` | BLAKE3 hashing — content addressing, keyed MAC, key derivation |
 //! | [`stream`] | XChaCha20-Poly1305 — authenticated encryption with zero-allocation in-place API |
+//! | [`dp`] | Differential-privacy Laplace noise over a **keyed** ChaCha20 CSPRNG — reproducible for whoever holds the key, unpredictable for everyone else |
 //!
 //! ## Cargo Features
 //!
@@ -110,6 +112,7 @@
 
 extern crate alloc;
 
+pub mod dp;
 pub mod gf256;
 pub mod hash;
 pub mod kdf;
@@ -119,6 +122,7 @@ pub mod sss;
 pub mod stream;
 
 // Re-exports
+pub use dp::{dp_count, dp_sum, DpError, DpNoise, EntropyError, SecureRng};
 pub use gf256::{batch_inv, batch_inv_stack, GF};
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
 pub use kdf::{password_stretch, HkdfBlake3, Prk};
