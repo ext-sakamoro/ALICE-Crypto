@@ -19,6 +19,7 @@ All notable changes to ALICE-Crypto are documented here.
   - `DpError` に `EpsilonOutOfRange` (ε の厳密な有理数が sampler の 96 bit に収まらない、目安 ε が `[2^-43, 2^43]` の外) / `CountOutOfRange` / `ValueOutOfRange` (`|x| / Λ ≥ 2^52`) を追加、`DpNoise::scale()` は `sensitivity()` / `epsilon()` / `lattice()` / `effective_epsilon()` に置き換えた
   - `SecureRng` は keystream を 64 block ずつまとめて作る (出力は同じ、RFC 8439 の試験で確認)
 - 依存 `alice-det-math` を外した (`ln64` を使わなくなったため)
+- CI: `ci.yml` と `security-audit.yml` が `ci/**` branch の push でも走る (main に fast-forward する前に同じ検査を branch で回すため)
 
 ### Added
 - `scripts/dp_delta_budget.py` (ci.yml と preflight): δ の各項の厳密な上界、`BERNOULLI_STEPS` の最小性、文書の数字の一致

@@ -12,7 +12,8 @@ name: Security & Hygiene
 
 on:
   push:
-    branches: [main]
+    # `ci/**` runs the same checks on a branch before it is fast-forwarded onto main
+    branches: [main, 'ci/**']
     paths:
       - 'Cargo.toml'
       - 'Cargo.lock'
