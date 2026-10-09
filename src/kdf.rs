@@ -7,6 +7,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use crate::hash;
+use zeroize::Zeroize;
 
 /// 疑似乱数鍵 (PRK) — Extract の出力。
 #[derive(Clone)]
@@ -21,9 +22,12 @@ impl Prk {
 }
 
 impl Drop for Prk {
+    /// 0 埋めして落とす
+    ///
+    /// ⚠️ 旧実装の `self.0.iter_mut().for_each(|b| *b = 0)` は「以降読まれない
+    /// 書き込み」として最適化で消えうる [`Zeroize`] は volatile write + fence
     fn drop(&mut self) {
-        // ゼロクリア (簡易 zeroize)
-        self.0.iter_mut().for_each(|b| *b = 0);
+        self.0.zeroize();
     }
 }
 

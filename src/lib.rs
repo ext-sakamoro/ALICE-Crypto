@@ -19,7 +19,41 @@
 //!
 //! ALICE-Crypto provides three complementary cryptographic primitives designed
 //! for the ALICE P2P ecosystem: secret splitting, hashing, and authenticated
-//! encryption. All operations are constant-time and `no_std`-compatible.
+//! encryption. Every module is `no_std`-compatible.
+//!
+//! ## Timing behaviour
+//!
+//! There is no single "all operations are constant-time" guarantee: the honest
+//! statement is per operation, because some operations legitimately depend on
+//! public inputs (slice lengths, iteration counts, key identifiers) and some are
+//! delegated to upstream crates. The table below says, for each operation, what
+//! the running time is allowed to depend on. Anything not listed there — in
+//! particular the *value* of a key, a share, a tag or a field element — must not
+//! affect it.
+//!
+//! | Operation | Running time may depend on |
+//! |-----------|----------------------------|
+//! | [`gf256::GF::add`] / `sub` / [`mul`](gf256::GF::mul) | nothing (unrolled bit operations, no tables, no branches) |
+//! | [`gf256::GF::inv_or_zero`] / [`div_or_zero`](gf256::GF::div_or_zero) | nothing |
+//! | [`gf256::GF::inv`] / [`div`](gf256::GF::div) | whether the argument was zero — i.e. exactly the `Option` that is returned |
+//! | [`gf256::batch_inv`] / [`batch_inv_stack`] | `inputs.len()`, plus the single "was any input zero" bit that the `Option` returns |
+//! | [`sss::split`] / [`sss::recover`] | secret length, share count, threshold (all public parameters) |
+//! | [`signature::verify`] / `verify_with_context` / `Signature as PartialEq` | message length (tag comparison is constant-time over all 32 bytes) |
+//! | `hash::*` / [`kdf`] | input length, and the requested output length / iteration count |
+//! | [`stream`] encrypt / decrypt | buffer and associated-data length |
+//! | [`keystore`] lookup / revoke / purge | number of stored entries (key *ids* and timestamps are public metadata, not secrets) |
+//!
+//! Caveats, stated rather than glossed over:
+//!
+//! - `hash`, `kdf` and `stream` delegate to the `blake3` and `chacha20poly1305`
+//!   crates. Those implementations are written without secret-dependent branches
+//!   or table lookups (and `chacha20poly1305` compares tags with `subtle`), but
+//!   this crate does not re-verify that property.
+//! - The table is enforced *statically* by `scripts/constant_time_guard.py`,
+//!   which rejects comparison `derive`s on secret-carrying types and
+//!   value-dependent early exits inside the operations above. That is a check on
+//!   how the code is written, not a proof: instruction selection, compiler
+//!   transformations and cache behaviour are not measured.
 //!
 //! ## Modules
 //!

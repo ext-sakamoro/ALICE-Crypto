@@ -1,7 +1,13 @@
 //! XChaCha20-Poly1305 stream cipher
 //!
-//! Extended nonce (192-bit), nonce-misuse resistant.
-//! Optimal for P2P environments.
+//! Extended nonce (192-bit), which makes per-message **random** nonces safe:
+//! with 24 bytes the chance of ever drawing the same nonce twice under one key
+//! is negligible, so no counter has to be kept across restarts.
+//!
+//! ⚠️ That is *not* nonce-misuse resistance. XChaCha20-Poly1305 has none: if the
+//! same `(key, nonce)` pair is used for two different messages the keystream
+//! repeats and the Poly1305 key can be recovered. The extended nonce removes the
+//! need to coordinate nonces, it does not make reuse survivable. See [`Nonce`].
 //!
 //! **Deep Fried**: Zero-allocation in-place APIs only.
 //! Convenience functions (seal/open) wrap in-place core.
@@ -13,6 +19,7 @@ use chacha20poly1305::{
     aead::{AeadInPlace, KeyInit},
     Tag, XChaCha20Poly1305, XNonce,
 };
+use zeroize::Zeroize;
 
 /// Encryption/decryption error
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,8 +35,18 @@ pub enum CipherError {
 }
 
 /// 32-byte symmetric key
+///
+/// Zeroed on drop. Note that `Clone` produces an independent copy which is
+/// zeroed separately, and that `pub` field access lets callers copy the bytes
+/// out — any such copy is the caller's to clear.
 #[derive(Clone)]
 pub struct Key(pub [u8; 32]);
+
+impl Drop for Key {
+    fn drop(&mut self) {
+        self.0.zeroize();
+    }
+}
 
 impl Key {
     pub const SIZE: usize = 32;
@@ -58,6 +75,20 @@ impl Key {
 }
 
 /// 24-byte nonce (extended nonce for `XChaCha20`)
+///
+/// # Nonce reuse
+///
+/// Encrypting two different messages with the same `(key, nonce)` pair breaks
+/// XChaCha20-Poly1305 completely: the keystream repeats, so XOR-ing the two
+/// ciphertexts reveals the XOR of the plaintexts, and the Poly1305 key can be
+/// recovered, which allows forging tags for that key. The nonce is not secret
+/// and is not zeroed on drop — it only has to be **unique per key**.
+///
+/// The 192-bit extended nonce is large enough that [`Self::generate`] (random
+/// per message) is the recommended way to satisfy that, and it is what
+/// [`seal`] does. A counter also works, but only if it is persisted across
+/// restarts; a counter that resets to zero on restart reuses nonces. Do not
+/// derive a nonce from a timestamp, a message hash or a fixed constant.
 #[derive(Clone, Copy)]
 pub struct Nonce(pub [u8; 24]);
 

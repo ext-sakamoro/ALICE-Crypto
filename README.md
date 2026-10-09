@@ -28,7 +28,14 @@ Cryptographic hashing faster than `memcpy`.
 Extended nonce variant of ChaCha20.
 
 - **No Hardware Lock:** Runs optimally on any CPU (Arm/x86/RISC-V)
-- **Nonce-Misuse Resistance:** Safer than AES-GCM in P2P environments
+- **Random nonces are safe:** the 192-bit extended nonce makes per-message
+  random nonces collision-free in practice, so no counter has to be persisted
+  across restarts — unlike AES-GCM's 96-bit nonce
+- ⚠️ **Not nonce-misuse resistant.** Reusing a `(key, nonce)` pair on two
+  different messages repeats the keystream and exposes the Poly1305 key. The
+  extended nonce removes the need to *coordinate* nonces; it does not make
+  reuse survivable. Use `Nonce::generate()` per message (this is what `seal`
+  does) and never derive a nonce from a timestamp, a hash or a constant
 
 ## Installation
 
@@ -225,8 +232,8 @@ This implementation is optimized to the **physical and mathematical limits**.
 |---------|----------------|
 | Multiplication | 8-stage fully unrolled, **branchless** (constant-time) |
 | Inverse | 11-step addition chain for a^254 (Fermat's little theorem) |
-| Batch Inverse | Montgomery Batch Inversion (1 inv + 3K mul for K elements) |
-| Timing Attack | **Resistant** (all operations constant-time) |
+| Batch Inverse | Montgomery Batch Inversion (1 inv + 3K mul for K elements), multiplication count depends on the slice length only |
+| Timing Attack | See **Timing behaviour** below — stated per operation, not as one blanket guarantee |
 
 ```rust
 // Branchless multiplication (no branch prediction misses)
@@ -268,7 +275,47 @@ recover(): K shards → 1 inv + O(K²) mul (was K inv)
 | Server Compromise | Shards distributed across locations |
 | Brute Force | XChaCha20 = 256-bit key space |
 | Replay Attacks | 192-bit nonce with AEAD |
-| Timing Attacks | Constant-time GF(2^8) operations |
+| Timing Attacks | Per-operation, see **Timing behaviour** |
+
+## Timing behaviour
+
+There is deliberately **no** single "all operations are constant-time" claim:
+some operations legitimately depend on public inputs (slice lengths, iteration
+counts, key identifiers) and some are delegated to `blake3` /
+`chacha20poly1305`. The crate-level rustdoc carries the full table of what each
+operation's running time may depend on; the short version is that the *value* of
+a key, a share, a MAC tag or a field element must never affect it.
+
+Two things follow from that, and both are checked:
+
+- `Signature` does **not** derive `PartialEq`: a derived `==` compares the 32
+  tag bytes front to back and stops at the first difference, which turns the
+  number of matching leading bytes into a timing signal. The hand-written `impl`
+  always scans all 32 bytes, the same comparison `verify` uses.
+- `gf256::inv` / `div` / `batch_inv` take no early exit on an element's value.
+  `inv_or_zero` / `div_or_zero` are the branch-free forms (`0` maps to `0`), and
+  `batch_inv` detects "some input was zero" from the running product — GF(2^8)
+  is a field, so that is equivalent and costs nothing — instead of testing each
+  element and bailing out at the first one.
+
+`scripts/constant_time_guard.py` enforces both statically (and fails when it has
+nothing to compare, so it cannot pass by looking at zero files); it runs in
+`security-audit.yml` and in `scripts/preflight.sh`. The behavioural half of the
+contract is pinned by `tests/constant_time_contract.rs`. Neither is a proof:
+instruction selection, compiler transformations and cache behaviour are not
+measured.
+
+## Key material handling
+
+Secrets are zeroed on drop through `zeroize` (volatile writes plus a fence, so
+the stores are not optimised away as dead): `SigningKey`, `VerifyingKey`,
+`stream::Key`, `kdf::Prk`, `keystore::KeyEntry.key_data`, and `sss::Shard.y`.
+`sss::split` also clears the stack buffers that held the secret bytes and the
+random polynomial coefficients before it returns.
+
+Not zeroed, on purpose: nonces and key ids (public), and `Signature` (a MAC tag
+is transmitted in the clear). Bytes a caller copies out via `as_bytes()` or a
+`pub` field are the caller's to clear.
 
 ## Integration with ALICE Ecosystem
 

@@ -7,6 +7,7 @@
 use alloc::vec::Vec;
 
 use alloc::collections::BTreeMap;
+use zeroize::Zeroize;
 
 /// 鍵 ID。
 pub type KeyId = u64;
@@ -55,8 +56,11 @@ impl KeyEntry {
 }
 
 impl Drop for KeyEntry {
+    /// 鍵材を 0 埋めして落とす
+    ///
+    /// ⚠️ `id` / `created_at` 等の metadata は秘密でないので触らない
     fn drop(&mut self) {
-        self.key_data.iter_mut().for_each(|b| *b = 0);
+        self.key_data.zeroize();
     }
 }
 

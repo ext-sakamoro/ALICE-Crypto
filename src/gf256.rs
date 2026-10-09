@@ -93,16 +93,19 @@ impl GF {
         Self(p)
     }
 
-    /// Multiplicative inverse using Fermat's little theorem
-    /// a^(-1) = a^254 in GF(2^8)
-    /// Fully unrolled addition chain (zero branches)
+    /// Multiplicative inverse, with `0` mapped to `0`
+    ///
+    /// Fermat's little theorem: `a^(-1) = a^254` in GF(2^8)
+    /// Fully unrolled addition chain, no branches and no table lookups.
+    ///
+    /// `0^254 = 0`, and for every `a != 0` the result is non-zero, so the
+    /// returned value is zero **exactly when** the input was zero. Callers that
+    /// need to reject zero inspect the result instead of branching on the input
+    /// (see [`Self::inv`]), which keeps the amount of work independent of the
+    /// secret value.
     #[inline(always)]
     #[must_use]
-    pub const fn inv(self) -> Option<Self> {
-        if self.0 == 0 {
-            return None;
-        }
-
+    pub const fn inv_or_zero(self) -> Self {
         // Addition chain for a^254
         // 254 = 128 + 64 + 32 + 16 + 8 + 4 + 2
         // = 2(1 + 2(1 + 2(1 + 2(1 + 2(1 + 2(1 + 2))))))
@@ -117,12 +120,28 @@ impl GF {
         let a63 = a60.mul(a3); // a^63
         let a126 = a63.mul(a63); // a^126
         let a252 = a126.mul(a126); // a^252
-        let a254 = a252.mul(a2); // a^254
-
-        Some(a254)
+        a252.mul(a2) // a^254
     }
 
-    /// Division: a / b = a * b^(-1)
+    /// Multiplicative inverse, `None` for zero
+    ///
+    /// The addition chain runs unconditionally ([`Self::inv_or_zero`]); only the
+    /// final `Option` wrapping looks at the value, and that bit of information is
+    /// what the return type already tells the caller. No early return is taken on
+    /// the input, so the time spent does not depend on the element.
+    #[inline(always)]
+    #[must_use]
+    pub const fn inv(self) -> Option<Self> {
+        let r = self.inv_or_zero();
+        // `r == 0` iff `self == 0` (see `inv_or_zero`)
+        if r.0 == 0 {
+            None
+        } else {
+            Some(r)
+        }
+    }
+
+    /// Division: a / b = a * b^(-1), `None` when `b` is zero
     #[inline(always)]
     #[must_use]
     pub const fn div(self, rhs: Self) -> Option<Self> {
@@ -130,6 +149,16 @@ impl GF {
             Some(inv) => Some(self.mul(inv)),
             None => None,
         }
+    }
+
+    /// Division with `b == 0` mapped to `0`
+    ///
+    /// Branch-free counterpart of [`Self::div`], for callers that fold the
+    /// zero case into a mask instead of control flow.
+    #[inline(always)]
+    #[must_use]
+    pub const fn div_or_zero(self, rhs: Self) -> Self {
+        self.mul(rhs.inv_or_zero())
     }
 }
 
@@ -144,35 +173,41 @@ impl GF {
 /// Cost: 1 `inv()` + 3*(n-1) `mul()` instead of n * `inv()`
 /// For n=10: 1 + 27 = 28 mul-equivalents vs 10 * 11 = 110 mul-equivalents
 ///
-/// Returns None if any input is zero.
+/// Returns `None` if any input is zero. The *number* of multiplications depends
+/// only on `inputs.len()`, never on the values: GF(2^8) is a field and therefore
+/// has no zero divisors, so "some input was zero" is exactly "the running product
+/// is zero", which the algorithm already computes. There is no per-element zero
+/// check and no early exit out of either loop, so the position of a zero does not
+/// show up in the running time.
+///
+/// On `None` the contents of `outputs` are unspecified (scratch space); callers
+/// must not read them.
 #[inline]
 pub fn batch_inv(inputs: &[GF], outputs: &mut [GF]) -> Option<()> {
-    let n = inputs.len();
-    if n == 0 {
+    // Slice lengths are public, so branching on them leaks nothing.
+    if inputs.is_empty() {
         return Some(());
     }
-    if outputs.len() < n {
+    if outputs.len() < inputs.len() {
         return None;
     }
+    let n = inputs.len();
 
-    // Check for zeros and compute cumulative products
-    // Using outputs as scratch space for products
+    // Cumulative products, using `outputs` as scratch space.
+    // outputs[i] = inputs[0] * .. * inputs[i]
     outputs[0] = inputs[0];
-    if inputs[0].0 == 0 {
-        return None;
-    }
-
     for i in 1..n {
-        if inputs[i].0 == 0 {
-            return None;
-        }
         outputs[i] = outputs[i - 1].mul(inputs[i]);
     }
 
-    // Single inversion of the total product
-    let mut inv_acc = outputs[n - 1].inv()?;
+    // Single inversion of the total product. `inv_or_zero` keeps this
+    // branch-free; the total is zero iff at least one input was zero.
+    let total = outputs[n - 1];
+    let mut inv_acc = total.inv_or_zero();
 
-    // Derive individual inverses in reverse
+    // Derive individual inverses in reverse. When `total` is zero the whole
+    // accumulator chain stays zero, which is harmless: the error is reported
+    // below and `outputs` is documented as unspecified in that case.
     for i in (1..n).rev() {
         // inv(a[i]) = inv_acc * products[i-1]
         outputs[i] = inv_acc.mul(outputs[i - 1]);
@@ -183,20 +218,27 @@ pub fn batch_inv(inputs: &[GF], outputs: &mut [GF]) -> Option<()> {
     // First element
     outputs[0] = inv_acc;
 
-    Some(())
+    // Single value-dependent decision, taken after all the work is done, and it
+    // carries no more information than the `Option` in the signature.
+    if total.0 == 0 {
+        None
+    } else {
+        Some(())
+    }
 }
 
-/// Batch inversion with stack-allocated buffer (max 255 elements)
+/// Batch inversion with stack-allocated buffer (max `N` elements)
 /// Returns the number of inverses computed.
 #[inline]
 pub fn batch_inv_stack<const N: usize>(inputs: &[GF], outputs: &mut [GF; N]) -> Option<usize> {
-    let n = inputs.len();
-    if n == 0 {
+    // Both checks are on lengths (public), not on element values.
+    if inputs.is_empty() {
         return Some(0);
     }
-    if n > N {
+    if inputs.len() > N {
         return None;
     }
+    let n = inputs.len();
 
     batch_inv(inputs, &mut outputs[..n])?;
     Some(n)

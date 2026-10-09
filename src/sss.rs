@@ -8,14 +8,26 @@
 //! - Recover: Montgomery Batch Inversion, O(K) reconstruction
 
 use crate::gf256::{batch_inv, GF};
+use zeroize::Zeroize;
 
 /// A share of the secret
+///
+/// `y` is zeroed on drop. `x` is a public coordinate and is left alone.
+///
+/// Note that `split` pre-allocates `y` with the exact capacity it needs, so the
+/// vector never reallocates and the zeroing covers every byte that was written.
 #[derive(Clone, Debug)]
 pub struct Shard {
     /// X coordinate (1-255, never 0)
     pub x: u8,
     /// Y values for each byte of the secret
     pub y: alloc::vec::Vec<u8>,
+}
+
+impl Drop for Shard {
+    fn drop(&mut self) {
+        self.y.zeroize();
+    }
 }
 
 /// Error type for SSS operations
@@ -100,7 +112,13 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
         while needed > 0 {
             // Refill buffer if empty
             if rng_idx >= RNG_BUF_SIZE {
-                getrandom::getrandom(&mut rng_buf).map_err(|_| SssError::RandomFailed)?;
+                if getrandom::getrandom(&mut rng_buf).is_err() {
+                    // Clear what the buffers already hold before bailing out:
+                    // `coeffs[0]` is a secret byte and the rest is key material.
+                    coeffs.iter_mut().for_each(|c| c.0.zeroize());
+                    rng_buf.zeroize();
+                    return Err(SssError::RandomFailed);
+                }
                 rng_idx = 0;
             }
 
@@ -125,6 +143,13 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
             shard.y.push(y.0);
         }
     }
+
+    // `coeffs[0]` held each secret byte in turn and `coeffs[1..k]` the random
+    // polynomial coefficients; `rng_buf` holds unconsumed random bytes. None of
+    // it is needed once the shards exist, and leaving it on the stack would let
+    // a later frame observe it.
+    coeffs.iter_mut().for_each(|c| c.0.zeroize());
+    rng_buf.zeroize();
 
     Ok(shards)
 }

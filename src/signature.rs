@@ -7,6 +7,7 @@
 //! 否認防止 (non-repudiation) には公開鍵署名が必要。
 
 use crate::hash;
+use zeroize::Zeroize;
 
 /// 署名サイズ (バイト)。
 pub const SIGNATURE_SIZE: usize = 32;
@@ -47,8 +48,12 @@ impl SigningKey {
 }
 
 impl Drop for SigningKey {
+    /// 鍵材を 0 埋めして落とす
+    ///
+    /// ⚠️ 手書きの `*b = 0` は「以降読まれない書き込み」として削除されうる
+    /// [`Zeroize`] は volatile write + fence なので消えない
     fn drop(&mut self) {
-        self.0.iter_mut().for_each(|b| *b = 0);
+        self.0.zeroize();
     }
 }
 
@@ -71,14 +76,33 @@ impl VerifyingKey {
 }
 
 impl Drop for VerifyingKey {
+    /// 0 埋めして落とす (対称 MAC なので検証鍵も秘密)
     fn drop(&mut self) {
-        self.0.iter_mut().for_each(|b| *b = 0);
+        self.0.zeroize();
     }
 }
 
 /// 署名値 (32 バイト BLAKE3-MAC)。
-#[derive(Clone, PartialEq, Eq)]
+///
+/// ⚠️ `PartialEq` / `Eq` を **derive しない** 導出された `==` は配列を先頭から比べて
+/// 不一致の位置で打ち切るので、**一致した先頭バイト数が実行時間に出る** 署名は MAC tag
+/// なので、1 バイトずつ合わせ込む偽造の足場になる 代わりに、本 module の private な
+/// `constant_time_eq` (全 32 byte を必ず走査する) を使う手書きの `impl PartialEq` を
+/// 下に置いている ([`verify`] も同じ関数を通る)
+///
+/// `Display` / `AsRef<[u8]>` は意図して実装しない 秘密に準じる値を `{}` で印字したり
+/// 汎用の byte 列として渡す経路を作らないため ([`Self::as_bytes`] を明示的に呼ぶ)
+#[derive(Clone)]
 pub struct Signature([u8; 32]);
+
+impl PartialEq for Signature {
+    /// 定数時間比較 (常に 32 バイト全部を走査する)
+    fn eq(&self, other: &Self) -> bool {
+        constant_time_eq(&self.0, &other.0)
+    }
+}
+
+impl Eq for Signature {}
 
 impl Signature {
     /// バイト配列から生成。

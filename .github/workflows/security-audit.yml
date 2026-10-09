@@ -94,6 +94,18 @@ jobs:
       # false-positive は Cargo.toml の [package.metadata.cargo-machete] ignored で除外
       - uses: bnjbvr/cargo-machete@main
 
+  constant-time-guard:
+    name: Constant-time guard (doc の主張 vs 実装)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      # src/lib.rs の § Timing behaviour は「どの操作の実行時間が何に依存してよいか」を
+      # 表で宣言している 宣言に検査が無いと実装が宣言から離れても誰も気付かないので、
+      # 静的に見られる 2 点 (秘密型の比較 derive / 値依存の早期脱出) を機械で止める
+      # ⚠️ 検査対象 0 件でも fail する (空振りを成功と読ませない)
+      - name: 秘密型の比較 derive と値依存の早期脱出を検出
+        run: python3 scripts/constant_time_guard.py
+
   stub-guard:
     name: Stub / mock / dbg guard (grep)
     runs-on: ubuntu-latest
