@@ -1,6 +1,6 @@
 [package]
 name = "alice-crypto"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Information-theoretic security primitives for ALICE"
@@ -14,7 +14,7 @@ crate-type = ["lib", "cdylib"]
 
 [features]
 default = ["std"]
-std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std", "alice-det-math/std"]
+std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
 alloc = ["blake3/traits-preview"]
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
@@ -30,7 +30,6 @@ chacha20poly1305 = { version = "0.10", default-features = false, features = ["al
 chacha20 = { version = "0.9", default-features = false }
 # `dp` の逆関数法が使う ln (bit 一致・1 ulp 保証) platform libm だと同じ鍵でも
 # 機械ごとに noise が変わり、replay と監査が成立しない
-alice-det-math = { version = "0.4", default-features = false }
 getrandom = { version = "0.2", default-features = false }
 # 秘密を落とす時の 0 埋めに使う 手書きの `*b = 0` は「以降読まれない書き込み」として
 # 消されうるので、volatile write + fence を持つ実装に任せる
@@ -43,6 +42,11 @@ codegen-units = 1
 panic = "abort"
 opt-level = 3
 strip = true
+
+# The DP samplers do a fixed, large amount of work per draw (they are
+# constant-time); their distribution tests draw tens of thousands of samples
+[profile.test]
+opt-level = 3
 
 [profile.bench]
 opt-level = 3

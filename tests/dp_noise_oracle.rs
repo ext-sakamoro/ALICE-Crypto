@@ -6,8 +6,10 @@
 //!    so it cannot be subtracted back out.
 //! 2. **Reproducibility** — with the key it can, which is what makes replay,
 //!    audit and testing possible.
-//! 3. **Distribution** — `Laplace(0, b)` really has mean 0 and variance 2b², so
-//!    the ε that was calculated matches the noise that was added.
+//! 3. **Distribution** — the noise has mean 0 and the variance 2b² of
+//!    `Laplace(0, b)` with `b = Δ/ε` (it is discrete Laplace on a lattice of
+//!    `2^-20 Δ`, see `tests/dp_lattice_oracle.rs`), so the ε that was
+//!    calculated matches the noise that was added.
 //!
 //! The implementations this replaced satisfied neither 1 nor 3:
 //! `xorshift64` seeded from the clock, with its state handed to the caller (the
@@ -100,10 +102,14 @@ fn the_stream_is_the_keystream_and_not_something_derived_from_it() {
 
 #[test]
 fn the_same_key_reproduces_the_same_noise() {
-    let mut a = DpNoise::with_key(1.0, key(7));
-    let mut b = DpNoise::with_key(1.0, key(7));
-    let xs: Vec<u64> = (0..256).map(|_| a.laplace().to_bits()).collect();
-    let ys: Vec<u64> = (0..256).map(|_| b.laplace().to_bits()).collect();
+    let mut a = DpNoise::with_key(1.0, 1.0, key(7));
+    let mut b = DpNoise::with_key(1.0, 1.0, key(7));
+    let xs: Vec<u64> = (0..256)
+        .map(|_| a.privatize(0.0).expect("in range").to_bits())
+        .collect();
+    let ys: Vec<u64> = (0..256)
+        .map(|_| b.privatize(0.0).expect("in range").to_bits())
+        .collect();
     assert_eq!(xs, ys, "the same key must give the same sequence");
     // Teeth: it is not simply returning a constant.
     let distinct = xs.iter().collect::<std::collections::BTreeSet<_>>().len();
@@ -112,10 +118,14 @@ fn the_same_key_reproduces_the_same_noise() {
 
 #[test]
 fn a_different_key_gives_a_different_noise_sequence() {
-    let mut a = DpNoise::with_key(1.0, key(7));
-    let mut b = DpNoise::with_key(1.0, key(8));
-    let xs: Vec<u64> = (0..64).map(|_| a.laplace().to_bits()).collect();
-    let ys: Vec<u64> = (0..64).map(|_| b.laplace().to_bits()).collect();
+    let mut a = DpNoise::with_key(1.0, 1.0, key(7));
+    let mut b = DpNoise::with_key(1.0, 1.0, key(8));
+    let xs: Vec<u64> = (0..64)
+        .map(|_| a.privatize(0.0).expect("in range").to_bits())
+        .collect();
+    let ys: Vec<u64> = (0..64)
+        .map(|_| b.privatize(0.0).expect("in range").to_bits())
+        .collect();
     let shared = xs.iter().zip(ys.iter()).filter(|(x, y)| x == y).count();
     assert_eq!(shared, 0, "{shared} values coincided across different keys");
 }
@@ -128,12 +138,12 @@ fn a_different_key_gives_a_different_noise_sequence() {
 fn the_distribution_is_laplace_with_mean_zero_and_variance_two_b_squared() {
     // Expected values from the definition: E[X] = 0, Var[X] = 2b².
     for b in [0.5f64, 1.0, 4.0] {
-        let mut n = DpNoise::with_key(b, key(42));
-        let count = 200_000;
+        let mut n = DpNoise::with_key(b, 1.0, key(42));
+        let count = 30_000;
         let mut sum = 0.0f64;
         let mut sum_sq = 0.0f64;
         for _ in 0..count {
-            let x = n.laplace();
+            let x = n.privatize(0.0).expect("in range");
             sum += x;
             sum_sq += x * x;
         }
@@ -145,7 +155,7 @@ fn the_distribution_is_laplace_with_mean_zero_and_variance_two_b_squared() {
         );
         let want = 2.0 * b * b;
         assert!(
-            ((var - want) / want).abs() < 0.05,
+            ((var - want) / want).abs() < 0.08, // 6σ of the variance estimate at 30k draws
             "b = {b}: variance {var} does not match 2b² = {want}"
         );
     }
@@ -154,10 +164,10 @@ fn the_distribution_is_laplace_with_mean_zero_and_variance_two_b_squared() {
 #[test]
 fn both_tails_are_produced() {
     // Catches a sign taken from the wrong place in the inverse transform.
-    let mut n = DpNoise::with_key(1.0, key(3));
+    let mut n = DpNoise::with_key(1.0, 1.0, key(3));
     let (mut neg, mut pos) = (0u32, 0u32);
     for _ in 0..10_000 {
-        if n.laplace() < 0.0 {
+        if n.privatize(0.0).expect("in range") < 0.0 {
             neg += 1;
         } else {
             pos += 1;
@@ -173,9 +183,9 @@ fn both_tails_are_produced() {
 fn the_noise_never_returns_a_magic_constant() {
     // The implementation this replaced returned -100.0 outside its `ln` domain,
     // which was not a probability-zero event but a path `u → 0` reached.
-    let mut n = DpNoise::with_key(1.0, key(5));
-    for _ in 0..200_000 {
-        let x = n.laplace();
+    let mut n = DpNoise::with_key(1.0, 1.0, key(5));
+    for _ in 0..20_000 {
+        let x = n.privatize(0.0).expect("in range");
         assert!(x.is_finite(), "non-finite noise {x}");
         assert!(
             (x - -100.0).abs() > 1e-12 || x.abs() < 1e-9,
@@ -191,8 +201,10 @@ fn the_noise_never_returns_a_magic_constant() {
 #[test]
 fn dp_count_and_dp_sum_add_noise_of_the_declared_scale() {
     let spread = |eps: f64| -> f64 {
-        let mut n = DpNoise::with_key(1.0 / eps, key(11));
-        let xs: Vec<f64> = (0..20_000).map(|_| n.laplace()).collect();
+        let mut n = DpNoise::with_key(1.0 / eps, 1.0, key(11));
+        let xs: Vec<f64> = (0..20_000)
+            .map(|_| n.privatize(0.0).expect("in range"))
+            .collect();
         let len = f64::from(u32::try_from(xs.len()).expect("count fits in u32"));
         let mean = xs.iter().sum::<f64>() / len;
         (xs.iter().map(|x| (x - mean) * (x - mean)).sum::<f64>() / len).sqrt()
@@ -208,15 +220,19 @@ fn dp_count_and_dp_sum_add_noise_of_the_declared_scale() {
     let mut r2 = SecureRng::from_key(key(13));
     let c = dp_count(1_000, 1.0, &mut r1).expect("ε = 1 is valid");
     let s = dp_sum(500.0, 10.0, 1.0, &mut r2).expect("valid arguments");
-    assert!((c - 1_000.0).abs() > 0.0, "dp_count added no noise");
+    // discrete Laplace puts mass (1 − e^−ε)/(1 + e^−ε) ≈ 0.46 on 0 at ε = 1, so
+    // one call may legitimately add nothing; 20 calls all adding 0 has
+    // probability ≈ 0.46^20 < 2^-22
+    let mut r4 = SecureRng::from_key(key(13));
+    let moved = (0..20)
+        .filter(|_| dp_count(1_000, 1.0, &mut r4).expect("valid") != 1_000)
+        .count();
+    assert!(moved > 0, "dp_count added no noise in 20 calls");
     assert!((s - 500.0).abs() > 0.0, "dp_sum added no noise");
 
     // Same key, same call order, same answer.
     let mut r3 = SecureRng::from_key(key(13));
-    assert_eq!(
-        dp_count(1_000, 1.0, &mut r3).expect("valid").to_bits(),
-        c.to_bits()
-    );
+    assert_eq!(dp_count(1_000, 1.0, &mut r3).expect("valid"), c);
 
     // ⚠️ ε has to take effect — this is the assertion that kills a wiring
     // mutation where the parameter is accepted and dropped.
@@ -225,7 +241,7 @@ fn dp_count_and_dp_sum_add_noise_of_the_declared_scale() {
         .map(|&eps| {
             let mut r = SecureRng::from_key(key(17));
             let xs: Vec<f64> = (0..4_000)
-                .map(|_| dp_count(0, eps, &mut r).expect("valid"))
+                .map(|_| dp_count(0, eps, &mut r).expect("valid") as f64)
                 .collect();
             let len = f64::from(u32::try_from(xs.len()).expect("count fits in u32"));
             let m = xs.iter().sum::<f64>() / len;
@@ -250,22 +266,22 @@ fn dp_count_and_dp_sum_add_noise_of_the_declared_scale() {
 #[test]
 fn an_invalid_scale_is_refused_instead_of_silently_producing_garbage() {
     assert!(
-        DpNoise::try_with_key(0.0, key(1)).is_err(),
+        DpNoise::try_with_key(0.0, 1.0, key(1)).is_err(),
         "accepted scale = 0"
     );
     assert!(
-        DpNoise::try_with_key(-1.0, key(1)).is_err(),
+        DpNoise::try_with_key(-1.0, 1.0, key(1)).is_err(),
         "accepted a negative scale"
     );
     assert!(
-        DpNoise::try_with_key(f64::NAN, key(1)).is_err(),
+        DpNoise::try_with_key(f64::NAN, 1.0, key(1)).is_err(),
         "accepted NaN"
     );
     assert!(
-        DpNoise::try_with_key(f64::INFINITY, key(1)).is_err(),
+        DpNoise::try_with_key(f64::INFINITY, 1.0, key(1)).is_err(),
         "accepted an infinite scale"
     );
-    assert!(DpNoise::try_with_key(1e-6, key(1)).is_ok());
+    assert!(DpNoise::try_with_key(1e-6, 1.0, key(1)).is_ok());
 }
 
 #[test]

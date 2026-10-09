@@ -285,26 +285,34 @@ being opposites once the determinism is anchored to a **secret key** instead of
 a public value like a clock:
 
 ```rust
-use alice_crypto::dp::{dp_count, SecureRng};
+use alice_crypto::dp::{dp_count, dp_sum, SecureRng};
 
 let mut rng = SecureRng::from_key(key_from_your_key_store);
-let noisy = dp_count(1_000, 1.0, &mut rng)?;   // count + Lap(1/epsilon)
+let noisy: i64 = dp_count(1_000, 1.0, &mut rng)?;        // count + discrete Laplace
+let total = dp_sum(5_423.75, 100.0, 0.5, &mut rng)?;     // sum, sensitivity 100, ε = 0.5
 ```
 
 - Every constructor takes a 32-byte key. The one that does not —
   `SecureRng::try_from_entropy()` — takes it from the OS and **fails** rather
   than falling back to anything guessable
-- `dp_count` / `dp_sum` take ε and derive the Laplace scale themselves. ⚠️ An ε
-  that is accepted and then ignored is worse than no ε at all, and taking the
-  scale as a parameter is how that happens
+- `dp_count` / `dp_sum` / `DpNoise` take ε (and the sensitivity Δ) and derive
+  the noise themselves. ⚠️ An ε that is accepted and then ignored is worse than
+  no ε at all, and taking a scale as a parameter is how that happens
+- **No floating-point `ln` or `exp`.** Floating-point inverse-transform
+  sampling leaks the uniform draw through the low bits of its result
+  (Mironov 2012). Counts get discrete Laplace noise and real values are rounded
+  to the lattice `Λ = 2^(⌊log2 Δ⌋ − 20)` and get `Λ ·` discrete Laplace noise,
+  both sampled with integer arithmetic only (Canonne, Kamath, Steinke 2020).
+  The rounding costs at most `ε · 2^-20`: `ε_eff = ε · Λ · (⌊Δ/Λ⌋ + 1) / Δ`
+- **Constant time.** Every draw does the same work and takes the same number of
+  keystream words whatever noise it produces (a sampler whose loops stop at
+  random would reveal the size of the noise, and with it where the true value
+  lies). The fixed bounds truncate tails of probability below `2^-103`, so the
+  mechanisms are `(ε_eff, δ)`-differentially private with
+  `δ = (1 + e^ε_eff) · 2^-103`; the module doc lists each term
 - The keystream is RFC 8439 ChaCha20 (from the `chacha20` crate this crate
-  already depended on, rather than a second hand-written copy), and the `ln` in
-  the inverse transform is `alice-det-math`'s bit-exact one — so the same key
+  already depended on, rather than a second hand-written copy), so the same key
   gives the same noise on every platform, which is what a replay needs
-- ⚠️ **Known limit:** floating-point inverse-transform sampling is subject to
-  Mironov's 2012 attack, so the ε here is the value for ideal real arithmetic,
-  not a machine-level guarantee. A snapping mechanism is not implemented yet and
-  the module doc says so
 
 ## Timing behaviour
 

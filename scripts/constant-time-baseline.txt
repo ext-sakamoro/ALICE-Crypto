@@ -1,0 +1,13 @@
+# functions marked `// CONSTANT-TIME:` in src/ (scripts/constant_time_guard.py check D)
+bernoulli_exp_neg
+bernoulli_ratio
+discrete_laplace
+div_floor
+draw128
+geometric
+lemire_top
+lt
+mask
+mul_wide
+select
+uniform_below

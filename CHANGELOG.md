@@ -4,6 +4,30 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-09
+
+### Security
+- **`dp` の noise から浮動小数点の逆関数法を除いた (Mironov 2012)** 0.2.0 の `-b·ln(u)` は CSPRNG を使っても結果の下位 bit が一様値 `u` を漏らし、`f64` では計算上の ε が成り立たなかった (module doc に「未対応」と書いていた点) 浮動小数点の `ln` / `exp` は一切使わない形に作り直した: count は離散 Laplace `P(Z = z) = (1 − e^−ε) / (1 + e^−ε) · e^(−ε·|z|)`、実数は格子 `Λ = 2^(⌊log2 Δ⌋ − 20)` に最近接で丸めて `Λ ·` 離散 Laplace を足す 標本化は Canonne, Kamath, Steinke (NeurIPS 2020) の Algorithm 1 / 2 を整数演算だけで行い、ε (と Δ) は `f64` の値から厳密に有理数へ変換する 丸めによる劣化は `ε_eff = ε · Λ · (⌊Δ/Λ⌋ + 1) / Δ ≤ ε · (1 + 2^-20)` Mironov 自身の snapping は採らなかった (その ε の上限は正しく丸められた `ln` を仮定するが、`alice-det-math` の `ln64` は 1 ulp 未満の誤差で正しく丸められてはいない)
+- **`dp` の標本化を定数時間にした** 停止するまで回す rejection や幾何分布の loop は noise が大きいほど長くかかり、出力 (真の値 + noise) は公開されるので、時間を測れる側は noise の大きさ、ひいては真の値の位置を絞れた (旧実装で |noise| ≥ 6 の呼び出しは 0 の時の 3.45 倍かかった、`tests/dp_timing.rs`) loop は固定回数、選択は mask、一様値は 256 × 128 bit の乗算 (秘密を割らない)、`⌊X/s⌋` は公開の逆数との乗算と mask の補正 2 回で、1 回の draw が使う keystream の語数は ε と Δ だけで決まる (`tests/dp_cost_model.rs`) 固定回数で裾を切るので、出力は厳密な離散 Laplace から統計距離 `η < 2^-103` だけずれ (各項の上界は `scripts/dp_delta_budget.py` が有理数で厳密に計算し、Bernoulli の段数 32 はその予算 `190/K! ≤ 2^-110` を満たす最小の K として決め、module doc の表と README・CHANGELOG の数字と cost model の語数を CI で突き合わせる)、機構は `(ε_eff, δ)`-差分プライバシー (`δ = (1 + e^ε_eff) · η`) で純粋な ε-差分プライバシーではない 各項は module doc の表 機械語の段で値依存の分岐が無いことは検証していない (source での検査のみ)
+
+### Changed
+- **破壊的変更 (0.x の minor)** 移行手順:
+  - `dp_count(count, ε, rng)` の戻り値は `Result<f64, _>` から `Result<i64, _>` に (整数の noise) `true_count` が `i64` に収まらない時と noise を足して溢れる時は `DpError::CountOutOfRange`
+  - `DpNoise::with_key(scale, key)` / `try_with_key(scale, key)` / `try_from_entropy(scale)` は `(sensitivity, epsilon, key)` / `(sensitivity, epsilon)` に 旧 `scale` は `sensitivity / epsilon` だったので、`with_key(b, key)` は `with_key(b, 1.0, key)` で同じ尺度になる
+  - `DpNoise::laplace()` (noise だけを返す) は削除し、値を受けて格子に丸めてから noise を足す `DpNoise::privatize(x)` に置き換えた ⚠️ 丸めずに `x + Λ·Z` を出すと、Δ 以内の 2 値の出力の台が重ならず差分プライバシーが成り立たないため、丸めを経ない入口は残さない
+  - `dp_sum(sum, sensitivity, ε, rng)` は引数は同じで、出力が格子 Λ の倍数になった
+  - `DpError` に `EpsilonOutOfRange` (ε の厳密な有理数が sampler の 96 bit に収まらない、目安 ε が `[2^-43, 2^43]` の外) / `CountOutOfRange` / `ValueOutOfRange` (`|x| / Λ ≥ 2^52`) を追加、`DpNoise::scale()` は `sensitivity()` / `epsilon()` / `lattice()` / `effective_epsilon()` に置き換えた
+  - `SecureRng` は keystream を 64 block ずつまとめて作る (出力は同じ、RFC 8439 の試験で確認)
+- 依存 `alice-det-math` を外した (`ln64` を使わなくなったため)
+
+### Added
+- `scripts/dp_delta_budget.py` (ci.yml と preflight): δ の各項の厳密な上界、`BERNOULLI_STEPS` の最小性、文書の数字の一致
+- `SecureRng::words_drawn()`: 渡した 64 bit 語の数 (noise 関数が値に依らず同じ語数を使うことを呼び出し側と試験が確かめるため)
+- 試験: `tests/dp_discrete_laplace_oracle.rs` (離散 Laplace の確率質量関数・対称性・隣の比 e^−ε・非二進の ε = 0.1 の分散・退化入力) / `tests/dp_lattice_oracle.rs` (格子の倍数・最近接の丸め・`ε_eff` を Python `fractions` で独立に計算した値との一致・`dp_sum` と `DpNoise` が同じ機構) / `tests/dp_cost_model.rs` (語数が固定、旧実装では red) / `tests/dp_timing.rs` (noise の大きさで時間の中央値が変わらない、旧実装では 3.45 倍で red)
+- `scripts/constant_time_guard.py` の検査 D: `// CONSTANT-TIME:` の印が付いた関数 (dp の sampler 12 本、`scripts/constant-time-baseline.txt`) に `if` / `while` / `loop` / `match` / `?` / `return` / `break` / `continue` / `&&` / `||` / `.min(` / `.max(` が無いこと、`for` の反復回数が literal・大文字の定数・公開の引数だけで決まる関数に限られること、印と baseline の一致、0 件で fail 試験は `scripts/test_constant_time_guard.py`
+- test の build は `opt-level = 3` (定数時間の sampler は 1 draw の仕事が大きく、分布の試験は数万回引く)
+
+
 ## [0.2.0] — 2026-10-09
 
 ### Added

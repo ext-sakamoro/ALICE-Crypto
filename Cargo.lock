@@ -14,21 +14,14 @@ dependencies = [
 
 [[package]]
 name = "alice-crypto"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
- "alice-det-math",
  "blake3",
  "chacha20",
  "chacha20poly1305",
  "getrandom",
  "zeroize",
 ]
-
-[[package]]
-name = "alice-det-math"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eef90265249a97cc0fac787cf918f62639991513c0219c33e1853de7f1a28a03"
 
 [[package]]
 name = "arrayvec"

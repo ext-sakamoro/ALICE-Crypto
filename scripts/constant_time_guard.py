@@ -23,6 +23,11 @@
 - **検査 B**: 定数時間を名乗る関数の中に、**値に依存する早期 return / `continue` /
   `break`** が無いこと (長さ・容量の検査は公開値なので許す)
 - **検査 C**: 比較対象が 0 件なら fail (空振りを成功と読ませない)
+- **検査 D**: 直前に `// CONSTANT-TIME:` の印がある関数 (`dp` の sampler) は、本体に
+  `if` / `while` / `loop` / `match` / `?` / `return` / `break` / `continue` を一切持たない
+  (分岐は mask の選択で、反復は固定回数の `for` で書く) 印の付いた関数の名前は
+  `scripts/constant-time-baseline.txt` と一致しなければならない (印を外す・名前を変えると
+  fail、0 件も fail)
 
 ⚠️ これは**静的な近似**であって、定数時間性の証明ではない (命令列や cache の挙動は
 測っていない) 統計的な時間測定 (dudect 方式) は CI のノイズが大きいので、ここでは
@@ -148,6 +153,91 @@ def check_early_returns(files: list[Path]) -> tuple[list[str], int]:
     return problems, checked
 
 
+MARKER = "// CONSTANT-TIME:"
+BASELINE = ROOT / "scripts" / "constant-time-baseline.txt"
+FORBIDDEN_CT = re.compile(
+    r"\b(if|while|loop|match|return|break|continue)\b|\?\s*;|\)\?"
+    r"|&&|\|\||\.min\(|\.max\("  # short-circuit and min / max compile to branches
+)
+# `for` の反復回数は公開値に限る: 数値 literal / 大文字の定数 / 公開の引数だけで決まる関数
+PUBLIC_BOUND_FNS = ("laplace_attempts",)
+FOR_RE = re.compile(r"\bfor\b[^{]*?\bin\b\s*(.+?)\s*\{")
+BOUND_OK = re.compile(
+    r"^\(?\s*\d+\s*\.\.=?\s*(?:\d+|[A-Z][A-Z0-9_]*|(?:"
+    + "|".join(PUBLIC_BOUND_FNS)
+    + r")\([^()]*\))\s*\)?(?:\.rev\(\))?$"
+)
+
+
+def strip_comments(line: str) -> str:
+    return line.split("//", 1)[0]
+
+
+def check_marked_functions(files: list[Path]) -> tuple[list[str], list[str]]:
+    """検査 D: 印の付いた関数に値で変わる制御構造が無いか
+
+    返り値: (違反, 印の付いた関数名)
+    """
+    problems: list[str] = []
+    names: list[str] = []
+    fn_re = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:const\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)")
+    for f in files:
+        lines = f.read_text(encoding="utf-8", errors="replace").split("\n")
+        for i, line in enumerate(lines):
+            if not line.strip().startswith(MARKER):
+                continue
+            # 印の後の最初の fn (属性と doc は飛ばす)
+            j = i + 1
+            while j < len(lines) and not fn_re.match(lines[j]):
+                if not lines[j].strip().startswith(("#[", "///", "//")):
+                    break
+                j += 1
+            m = fn_re.match(lines[j]) if j < len(lines) else None
+            if not m:
+                problems.append(f"{f.relative_to(ROOT)}:{i + 1}: `{MARKER}` の直後に fn が無い")
+                continue
+            name = m.group(1)
+            names.append(name)
+            depth, started = 0, False
+            for k in range(j, len(lines)):
+                code = strip_comments(lines[k])
+                if k > j and FORBIDDEN_CT.search(code):
+                    problems.append(
+                        f"{f.relative_to(ROOT)}:{k + 1}: 印の付いた `{name}` に値で変わる制御構造: "
+                        f"{lines[k].strip()} (mask の選択と固定回数の for で書く)"
+                    )
+                fm = FOR_RE.search(code) if k > j else None
+                if fm and not BOUND_OK.match(fm.group(1).strip()):
+                    problems.append(
+                        f"{f.relative_to(ROOT)}:{k + 1}: 印の付いた `{name}` の for の反復回数が公開値と"
+                        f"確かめられない: {fm.group(1).strip()} (literal / 大文字の定数 / "
+                        f"{', '.join(PUBLIC_BOUND_FNS)} だけを許す)"
+                    )
+                depth += code.count("{") - code.count("}")
+                if "{" in code:
+                    started = True
+                if started and depth == 0:
+                    break
+    return problems, names
+
+
+def check_baseline(names: list[str]) -> list[str]:
+    """印の付いた関数の名前が baseline と一致するか"""
+    if not BASELINE.exists():
+        return [f"{BASELINE.relative_to(ROOT)} が無い"]
+    want = sorted(
+        l.strip() for l in BASELINE.read_text(encoding="utf-8").splitlines()
+        if l.strip() and not l.startswith("#")
+    )
+    got = sorted(names)
+    problems = []
+    for n in sorted(set(want) - set(got)):
+        problems.append(f"baseline の `{n}` に `{MARKER}` の印が無い (外した・名前を変えた)")
+    for n in sorted(set(got) - set(want)):
+        problems.append(f"`{n}` に印があるが baseline に無い (足すなら baseline にも足す)")
+    return problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", action="store_true")
@@ -156,28 +246,34 @@ def main() -> int:
     files = src_files()
     a_problems, a_checked = check_secret_derives(files)
     b_problems, b_checked = check_early_returns(files)
+    d_problems, marked = check_marked_functions(files)
+    d_problems += check_baseline(marked)
 
     if args.list:
-        print(f"src {len(files)} file / 秘密型の derive {a_checked} 件 / 定数時間 fn {b_checked} 件")
+        print(
+            f"src {len(files)} file / 秘密型の derive {a_checked} 件 / 定数時間 fn {b_checked} 件 / "
+            f"印の付いた fn {len(marked)} 件"
+        )
         return 0
 
     # 検査 C: 空振りを成功と読ませない
-    if a_checked == 0 or b_checked == 0:
+    if a_checked == 0 or b_checked == 0 or not marked:
         print(
-            f"constant-time guard: 比較件数 0 (秘密型 {a_checked} / fn {b_checked}) "
+            f"constant-time guard: 比較件数 0 (秘密型 {a_checked} / fn {b_checked} / 印 {len(marked)}) "
             f"— 検査が成立していない (SECRET_TYPES / CONSTANT_TIME_FNS と実装の名前を突き合わせる)",
             file=sys.stderr,
         )
         return 2
 
-    problems = a_problems + b_problems
+    problems = a_problems + b_problems + d_problems
     if problems:
         print(f"constant-time guard: {len(problems)} 件", file=sys.stderr)
         for p in problems:
             print(f"  {p}", file=sys.stderr)
         return 1
     print(
-        f"constant-time guard: OK (秘密型 {a_checked} 件 / 定数時間 fn {b_checked} 件を検査)"
+        f"constant-time guard: OK (秘密型 {a_checked} 件 / 定数時間 fn {b_checked} 件 / "
+        f"印の付いた fn {len(marked)} 件を検査)"
     )
     return 0
 

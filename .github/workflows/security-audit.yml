@@ -18,6 +18,9 @@ on:
       - 'Cargo.lock'
       - 'src/**'
       - 'deny.toml'
+      - 'scripts/constant_time_guard.py'
+      - 'scripts/test_constant_time_guard.py'
+      - 'scripts/constant-time-baseline.txt'
       - '.github/workflows/security-audit.yml'
       - '.github/actions/**'
   pull_request:
@@ -27,6 +30,9 @@ on:
       - 'Cargo.lock'
       - 'src/**'
       - 'deny.toml'
+      - 'scripts/constant_time_guard.py'
+      - 'scripts/test_constant_time_guard.py'
+      - 'scripts/constant-time-baseline.txt'
       - '.github/workflows/security-audit.yml'
       - '.github/actions/**'
   schedule:
@@ -105,7 +111,9 @@ jobs:
       # 表で宣言している 宣言に検査が無いと実装が宣言から離れても誰も気付かないので、
       # 静的に見られる 2 点 (秘密型の比較 derive / 値依存の早期脱出) を機械で止める
       # ⚠️ 検査対象 0 件でも fail する (空振りを成功と読ませない)
-      - name: 秘密型の比較 derive と値依存の早期脱出を検出
+      - name: 検査器自身の試験 (印の付いた関数の検査 D が違反を拾うこと)
+        run: python3 scripts/test_constant_time_guard.py
+      - name: 秘密型の比較 derive と値依存の早期脱出、印の付いた関数の制御構造を検出
         run: python3 scripts/constant_time_guard.py
 
   stub-guard:

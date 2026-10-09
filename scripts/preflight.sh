@@ -70,6 +70,7 @@ step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 
 
 step "ci.yml / fmt: Check formatting"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo fmt -- --check )
+python3 scripts/dp_delta_budget.py
 
 step "ci.yml / doc: Doc (full native feature set)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi" RUSTDOCFLAGS="-Dwarnings"; cargo doc --no-deps --features "$NATIVE_FEATURES" )
@@ -84,7 +85,7 @@ step "security-audit.yml / unused-deps: cargo machete"
 cargo machete
 
 step "security-audit.yml / constant-time-guard: 秘密型の比較 derive と値依存の早期脱出を検出"
-( export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; python3 scripts/constant_time_guard.py )
+( export CARGO_TERM_COLOR="always" CARGO_NET_RETRY="5" CARGO_HTTP_MULTIPLEXING="false"; python3 scripts/test_constant_time_guard.py && python3 scripts/constant_time_guard.py )
 
 step "security-audit.yml / stub-guard: Block panic!(STUB) in src/**"
 (

@@ -94,6 +94,10 @@ jobs:
           components: rustfmt
       - name: Check formatting
         run: cargo fmt -- --check
+      # dp の δ: 切り捨ての各項を有理数で厳密に計算し、定数 (BERNOULLI_STEPS 等) と
+      # 文書 (module doc の表、README、CHANGELOG) と cost model の数字を突き合わせる
+      - name: DP δ budget (exact)
+        run: python3 scripts/dp_delta_budget.py
 
   doc:
     name: Doc

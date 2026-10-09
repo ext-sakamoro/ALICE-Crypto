@@ -42,7 +42,7 @@
 //! | `hash::*` / [`kdf`] | input length, and the requested output length / iteration count |
 //! | [`stream`] encrypt / decrypt | buffer and associated-data length |
 //! | [`keystore`] lookup / revoke / purge | number of stored entries (key *ids* and timestamps are public metadata, not secrets) |
-//! | [`dp`] noise generation | the number of samples drawn — not the key and not the values produced (the inverse transform does the same work every time: one keystream word for the sign, one for the magnitude, one `ln`) |
+//! | [`dp`] noise generation | the number of samples drawn and the public ε / Δ — not the key, the true value or the noise produced (fixed trip counts and masked choices; each draw takes a fixed number of keystream words, checked by `tests/dp_cost_model.rs` and the `// CONSTANT-TIME:` functions of `scripts/constant_time_guard.py`) |
 //!
 //! Caveats, stated rather than glossed over:
 //!
@@ -64,7 +64,7 @@
 //! | [`sss`] | Shamir's Secret Sharing — K-of-N threshold splitting with Montgomery batch inv |
 //! | `hash` | BLAKE3 hashing — content addressing, keyed MAC, key derivation |
 //! | [`stream`] | XChaCha20-Poly1305 — authenticated encryption with zero-allocation in-place API |
-//! | [`dp`] | Differential-privacy Laplace noise over a **keyed** ChaCha20 CSPRNG — reproducible for whoever holds the key, unpredictable for everyone else |
+//! | [`dp`] | Differential-privacy noise over a **keyed** ChaCha20 CSPRNG: discrete Laplace for counts and on a power-of-two lattice for real values, sampled with integer arithmetic only and in constant time — reproducible for whoever holds the key, unpredictable for everyone else |
 //!
 //! ## Cargo Features
 //!
