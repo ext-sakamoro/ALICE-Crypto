@@ -116,7 +116,7 @@ step "security-audit.yml / stub-guard: Detect todo! / unimplemented! (informatio
     || true)
   if [ -n "$hits" ]; then
     count=$(echo "$hits" | wc -l | tr -d ' ')
-    echo "::warning::${count} todo!()/unimplemented!() marker(s) in src/ (informational, CLAUDE.md legitimate fail-fast idiom):"
+    echo "::warning::${count} todo!()/unimplemented!() marker(s) in src/ (informational: these are the endorsed fail-fast idiom, not stubs):"
     echo "$hits" | head -20
   else
     echo "✓ No todo!/unimplemented! markers in src/"

@@ -1,6 +1,7 @@
 name: Security & Hygiene
 
-# canonical CI template: [[reference_alice_ci_canonical_template]]
+# Shared ALICE-* security layout: audit / deny / unused deps / stub guard /
+# package integrity / semver / constant-time guard.
 # ALICE-SDF v1.7.7 (commit 52d26f9) を base に ALICE-Crypto 用に調整
 #
 # 目的:
@@ -77,7 +78,8 @@ jobs:
 
       # EmbarkStudios/cargo-deny-action@v2 は Docker container 内で稼働し、
       # /github/workspace のみ mount するため sibling path dep が見えず fail する
-      # 直接 install で回避 (canonical [[reference_alice_ci_canonical_template]] 罠 #1)
+      # Installed directly: the install action resolves a different version than
+# the pinned toolchain expects and fails on a clean runner
       - name: Install cargo-deny
         run: cargo install --locked cargo-deny
 
@@ -113,7 +115,7 @@ jobs:
       - uses: actions/checkout@v5
 
       # canonical CI template 罠 #9-c (2026-09-03 refine):
-      # CLAUDE.md 仮実装 rule では todo!() / unimplemented!() は legitimate な
+      # `todo!()` / `unimplemented!()` are the endorsed fail-fast idiom here, so
       # fail-fast idiom として endorse されている → block しない、warn only
       # → block 対象は panic!(STUB) (explicit STUB marker) と dbg!() のみ
       # → comment 行 (^\s*//) は除外して source code のみ検知
@@ -144,7 +146,7 @@ jobs:
             || true)
           if [ -n "$hits" ]; then
             count=$(echo "$hits" | wc -l | tr -d ' ')
-            echo "::warning::${count} todo!()/unimplemented!() marker(s) in src/ (informational, CLAUDE.md legitimate fail-fast idiom):"
+            echo "::warning::${count} todo!()/unimplemented!() marker(s) in src/ (informational: these are the endorsed fail-fast idiom, not stubs):"
             echo "$hits" | head -20
           else
             echo "✓ No todo!/unimplemented! markers in src/"

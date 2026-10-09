@@ -1,6 +1,8 @@
 name: Fuzz
 
-# canonical CI template: [[reference_alice_ci_canonical_template]]
+# Shared ALICE-* fuzz layout: build every target on nightly, then replay the
+# corpus time-boxed. The build is the hard gate; the replay is informational
+# because a timeout is not a crash.
 # ALICE-SDF v1.7.7 (commit 52d26f9) を base に ALICE-Crypto 用に調整
 #
 # 目的:

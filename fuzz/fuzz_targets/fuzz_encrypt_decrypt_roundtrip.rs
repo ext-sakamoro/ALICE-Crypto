@@ -1,6 +1,7 @@
 //! Fuzz target: XChaCha20-Poly1305 seal/open が任意 plaintext + 任意 key で bit-exact 一致すること
 //!
-//! canonical CI template [[reference_alice_ci_canonical_template]] 準拠
+//! Part of the shared ALICE-* fuzz set: one target per public entry point
+//! that parses untrusted bytes.
 //!
 //! 決定論 crypto value のため、encrypt → decrypt → 元 plaintext と bit-exact 一致は必須。
 //! 想定する危険:

@@ -1,4 +1,6 @@
-# Rust toolchain pin (feedback_clippy_rust_version_drift 準拠)
+# Rust toolchain pin. Without it, clippy's MSRV-aware lints flip between
+# machines: a newer toolchain proposes APIs that the declared MSRV rejects,
+# so the same code is clean locally and red in CI.
 [toolchain]
 channel = "1.98.1"
 components = ["rustfmt", "clippy"]

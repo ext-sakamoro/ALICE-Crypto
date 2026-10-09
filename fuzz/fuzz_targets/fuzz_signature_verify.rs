@@ -1,6 +1,7 @@
 //! Fuzz target: BLAKE3-MAC sign/verify が任意 bytes で panic せず、property が成立すること
 //!
-//! canonical CI template [[reference_alice_ci_canonical_template]] 準拠
+//! Part of the shared ALICE-* fuzz set: one target per public entry point
+//! that parses untrusted bytes.
 //!
 //! Property:
 //! - sign(k, m) → verify(k.vk, m, sig) == true (roundtrip 常に成功)

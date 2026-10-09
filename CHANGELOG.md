@@ -4,6 +4,8 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-09
+
 ### Added
 - **`dp` module — 差分プライバシーの Laplace noise を鍵基準の CSPRNG で生成する** 再現性と秘匿は「決定論の基準を何に置くか」で両立する: 公開値 (時刻 / 連番) を基準にすると攻撃者も同じ値を推測して noise を引き去れるが、**秘密の鍵**を基準にすれば同じ鍵で同じ列が出て (replay / 監査 / 試験)、鍵を知らない側からは予測も再現もできない ⚠️ **本 module は同日に ALICE-* 2 crate で見つかった同型の欠陥のために作った**: `xorshift64` を時刻 seed で回し状態を呼び出し側に返す形で、(a) 時刻は推測できるので鍵が総当たりできる (b) **xorshift は F2 線形なので出力 64 bit から状態が線形代数で解け、総当たりすら不要** 入れたもの: `SecureRng` (RFC 8439 ChaCha20 の keystream、鍵と buffer は drop 時に `zeroize`) / `DpNoise` (Laplace、逆関数法、符号は別の keystream bit から取る — `u` を流用すると符号と大きさが相関して片側の裾が薄くなる) / `dp_count` / `dp_sum` (**乱数源だけを受け取り scale を ε から導く** ⚠️ scale を引数にすると、呼び出し側の ε と実際の noise が食い違っても誰も気付かない = 配線の変異が恒等になる) / 不正な scale・ε・sensitivity は `Err`
 - 依存 2 本: `chacha20` (`chacha20poly1305` が既に引いているので依存木は増えない ⚠️ **手書きの block 関数を持つと同じ法則の写しが 2 つになる**ので実装は 1 つに寄せた) と `alice-det-math` (`ln64` は bit 一致・1 ulp 保証、platform libm では同じ鍵でも機械ごとに noise が変わり replay が成立しない)

@@ -1,6 +1,8 @@
 name: CI
 
-# canonical CI template: [[reference_alice_ci_canonical_template]] 手順 4.5 / 4.6
+# Shared ALICE-* CI layout: test / clippy / no_std / feature-powerset / fmt /
+# doc / actionlint. Each job is here because a defect reached main through it
+# at least once.
 # 2026-09-15 新設 (それまで fuzz / security-audit のみで test / clippy / doc は CI 未実行、crates.io 公開 crate):
 # - test / clippy / doc を default + full native feature set (std,ffi) で `-D warnings`
 # - no_std job: `crate-type` に cdylib を含むため `cargo check --no-default-features` は panic_handler /

@@ -1,6 +1,7 @@
 //! Fuzz target: BLAKE3 `hash()` / `keyed_hash()` / `derive_key()` が任意 bytes で panic しないこと
 //!
-//! canonical CI template [[reference_alice_ci_canonical_template]] 準拠
+//! Part of the shared ALICE-* fuzz set: one target per public entry point
+//! that parses untrusted bytes.
 //!
 //! 想定する危険:
 //! - 空 slice / huge slice / non-UTF8 / edge bytes で panic
