@@ -4,6 +4,19 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-10-10
+
+### Added
+- `dp::dp_int(value, sensitivity, ε, rng)`: 整数の値に、感度 `Δ` (整数) の離散 Laplace noise (減衰 `ε/Δ`、格子 `Λ = 1` なので丸め無し) を足す `dp_count` は `Δ = 1` の非負の場合 `value + Z` が `i64` を溢れる時は `CountOutOfRange` で拒否し、飽和はしない (飽和した出力は noise が上限を越えたことを漏らす) `Δ = 0` は `InvalidScale`
+- `dp::randomized_response(bit, ε, rng)`: 確率 `e^ε / (1 + e^ε)` で元の bit、他は反転 (1 bit の ε-差分プライバシー) 反転は整数の Bernoulli の手順 (CKS20 Algorithm 1 の `e^-1` を `⌊ε⌋` 回と端数を 1 回) で決め、浮動小数点の `exp` を使わない 固定 105 round の受理で、1 回の呼び出しが使う keystream の語数は ε だけで決まる (`105 · (1 + (⌊ε⌋ + 1) · 128)`) `⌊ε⌋ ≤ RR_MAX_EPSILON_WHOLE` (63)
+- `dp::bernoulli_ratio(num, den, rng)`: 確率がちょうど `num / den` (分数で受け、丸めた入口は無い) の Bernoulli、1 回 4 語 `den = 0` / `num > den` は新しい `DpError::InvalidProbability`
+- `scripts/dp_rr_exact.py` (ci.yml と preflight): `randomized_response` の手順 (固定 step と round の打ち切りを含む) が返す反転確率を `fractions.Fraction` で厳密に求め、`1/(1 + e^ε)` との差 (一様乱数の偏りを含む) が 6 つの ε で `2^-100` 以下であることを確かめる (`RR_ROUNDS` を 40、`BERNOULLI_STEPS` を 12 にすると失敗)
+- 試験 `tests/dp_mechanisms_oracle.rs`: `dp_int` の確率質量関数 (4 組の Δ, ε) と対称性、`i64::MIN` / `MAX` での拒否、Δ = 0 と不正な ε / 反転の頻度 (ε = 0.5 / 1 で 2·10^5 回、2.75 / 5 で 4·10^4 回) と χ² / `bernoulli_ratio` の境界 (`u64::MAX`) と頻度 / 3 つとも語数が値に依らないこと / 固定鍵での出力の pin
+- 用途: ALICE-Physics の privacy (RandomizedResponse / Rappor / 整数の Laplace) をこの module に寄せるため 同じ理由で ALICE-Analytics の DP 機能の削除 (既定の方針) でも参照先にできる
+
+### Changed
+- 定数時間の検査 (検査 D) の `for` の上限に、公開の rate から決まる `exp_neg_whole_steps` を許す (`laplace_attempts` と同じ扱い) 印の付いた関数は 14 本
+
 ### Fixed
 - Fuzz の workflow が crash を見つけても成功していた (run の step が `continue-on-error`) crash で job を失敗させ、各 target が 1 件以上の入力を実行したことを確かめ (0 件は失敗)、target ごとの実行数と coverage を job summary に出す `fuzz/regressions/<target>` の入力を毎回 corpus として再生する 手元で 3 target を各 90 秒 (計 3260 万件) 走らせて crash は無かった
 - CI: 生成物 (`__pycache__` / `*.pyc` / `target/` / fuzz の artifacts と corpus / `.DS_Store` / `*.profraw`) が tracked でないことを確かめる (`scripts/tracked_generated_check.py`、ci.yml と preflight、`git ls-files` が 0 件なら失敗) `.gitignore` に `__pycache__/` と `*.pyc` を足した

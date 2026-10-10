@@ -73,6 +73,7 @@ step "ci.yml / fmt: Check formatting"
 python3 scripts/dp_delta_budget.py
 python3 scripts/test_tracked_generated_check.py
 python3 scripts/tracked_generated_check.py
+python3 scripts/dp_rr_exact.py
 
 step "ci.yml / doc: Doc (full native feature set)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi" RUSTDOCFLAGS="-Dwarnings"; cargo doc --no-deps --features "$NATIVE_FEATURES" )

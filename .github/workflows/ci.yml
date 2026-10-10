@@ -103,6 +103,8 @@ jobs:
         run: |
           python3 scripts/test_tracked_generated_check.py
           python3 scripts/tracked_generated_check.py
+      - name: Exact flip probability of randomized_response
+        run: python3 scripts/dp_rr_exact.py
 
   doc:
     name: Doc

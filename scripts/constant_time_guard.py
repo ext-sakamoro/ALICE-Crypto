@@ -160,7 +160,7 @@ FORBIDDEN_CT = re.compile(
     r"|&&|\|\||\.min\(|\.max\("  # short-circuit and min / max compile to branches
 )
 # `for` の反復回数は公開値に限る: 数値 literal / 大文字の定数 / 公開の引数だけで決まる関数
-PUBLIC_BOUND_FNS = ("laplace_attempts",)
+PUBLIC_BOUND_FNS = ("laplace_attempts", "exp_neg_whole_steps")
 FOR_RE = re.compile(r"\bfor\b[^{]*?\bin\b\s*(.+?)\s*\{")
 BOUND_OK = re.compile(
     r"^\(?\s*\d+\s*\.\.=?\s*(?:\d+|[A-Z][A-Z0-9_]*|(?:"

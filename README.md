@@ -310,6 +310,13 @@ let total = dp_sum(5_423.75, 100.0, 0.5, &mut rng)?;     // sum, sensitivity 100
   lies). The fixed bounds truncate tails of probability below `2^-103`, so the
   mechanisms are `(ε_eff, δ)`-differentially private with
   `δ = (1 + e^ε_eff) · 2^-103`; the module doc lists each term
+- Integer values with a whole-number sensitivity use `dp_int(value, Δ, ε, rng)`
+  (lattice 1, nothing rounded; an overflowing result is refused, never
+  clamped). One private bit uses `randomized_response(bit, ε, rng)`, which keeps
+  the bit with probability `e^ε / (1 + e^ε)` decided by the same integer
+  Bernoulli steps; `scripts/dp_rr_exact.py` computes the exact probability its
+  truncated steps produce and bounds the gap to the target below `2^-100`. A
+  coin with an exact rational probability is `bernoulli_ratio(num, den, rng)`
 - The keystream is RFC 8439 ChaCha20 (from the `chacha20` crate this crate
   already depended on, rather than a second hand-written copy), so the same key
   gives the same noise on every platform, which is what a replay needs

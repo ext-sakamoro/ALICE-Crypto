@@ -356,11 +356,15 @@ pub enum DpError {
     /// ε (or ε scaled to the lattice, `ε·Λ/Δ`) is so small or so large that
     /// its exact rational does not fit the sampler's 96-bit integers
     EpsilonOutOfRange,
-    /// The true count does not fit an `i64`, or count + noise overflows it
+    /// The true count does not fit an `i64`, or count (or integer value) +
+    /// noise overflows it. The result is refused, never saturated: a clamped
+    /// output would tell the observer the noise ran past the limit
     CountOutOfRange,
     /// The value is too large for its lattice: `|x| / Λ` must stay below
     /// 2^52 so that rounding and `Λ · k` are exact in `f64`
     ValueOutOfRange,
+    /// A probability `num / den` with `den = 0` or `num > den`
+    InvalidProbability,
     /// The OS entropy source was unavailable
     Entropy(EntropyError),
 }
@@ -374,6 +378,9 @@ impl core::fmt::Display for DpError {
             }
             Self::CountOutOfRange => f.write_str("count or count + noise does not fit an i64"),
             Self::ValueOutOfRange => f.write_str("|value| / lattice must stay below 2^52"),
+            Self::InvalidProbability => {
+                f.write_str("probability num / den needs den > 0 and num <= den")
+            }
             Self::Entropy(e) => write!(f, "{e}"),
         }
     }
@@ -631,11 +638,11 @@ fn uniform_below(n: u128, rng: &mut SecureRng) -> u128 {
 /// 1 with probability `x / den` (`x ≤ den`, `den` public), else 0
 // CONSTANT-TIME: fixed work and keystream draws for every value
 #[inline(always)]
-fn bernoulli_ratio(x: u128, den: u128, rng: &mut SecureRng) -> u128 {
+fn bernoulli_ct(x: u128, den: u128, rng: &mut SecureRng) -> u128 {
     lt(uniform_below(den, rng), x)
 }
 
-/// 1 with probability `exp(−x/y)` for `0 ≤ x < y` (CKS20 Algorithm 1): draw
+/// 1 with probability `exp(−x/y)` for `0 ≤ x ≤ y` (CKS20 Algorithm 1): draw
 /// `A_k ~ Bernoulli(γ/k)` for `k = 1, 2, …` until one is 0; the index of that
 /// zero is odd with probability `exp(−γ)`. All [`BERNOULLI_STEPS`] draws are
 /// made; a run with no zero (probability `γ^32/32! ≤ 1/32!`) returns 0.
@@ -644,7 +651,7 @@ fn bernoulli_exp_neg(x: u128, y: u128, rng: &mut SecureRng) -> u128 {
     let mut alive = u128::MAX; // all-ones while no zero has been drawn
     let mut stopped_at = 0u128;
     for k in 1..=BERNOULLI_STEPS {
-        let a = bernoulli_ratio(x, y * k, rng);
+        let a = bernoulli_ct(x, y * k, rng);
         stopped_at = select(alive & mask(1 - a), k, stopped_at);
         alive &= mask(a);
     }
@@ -696,6 +703,53 @@ fn discrete_laplace(rate: Ratio, rng: &mut SecureRng) -> i128 {
     #[allow(clippy::cast_possible_wrap)]
     let z = result as i128;
     z
+}
+
+/// `⌊rate⌋`: how many `e^−1` factors [`bernoulli_exp_neg_any`] draws, read
+/// off the public rate only
+const fn exp_neg_whole_steps(rate: Ratio) -> u128 {
+    rate.num / rate.den
+}
+
+/// 1 with probability `exp(−rate)` for any public `rate = s/t`: `e^−1` drawn
+/// `⌊rate⌋` times and `exp(−(rate − ⌊rate⌋))` once, all with
+/// [`bernoulli_exp_neg`]; the product of independent draws is their AND
+// CONSTANT-TIME: fixed work and keystream draws for every value
+fn bernoulli_exp_neg_any(rate: Ratio, rng: &mut SecureRng) -> u128 {
+    let mut all = 1u128;
+    for _ in 0..exp_neg_whole_steps(rate) {
+        all &= bernoulli_exp_neg(1, 1, rng);
+    }
+    all & bernoulli_exp_neg(rate.num % rate.den, rate.den, rng)
+}
+
+/// Fixed rounds of the randomized-response flip: a round is accepted with
+/// probability `(1 + e^−ε)/2 ≥ 1/2`, so no acceptance in all rounds has
+/// probability `≤ 2^-105` (`scripts/dp_rr_exact.py`)
+const RR_ROUNDS: usize = 105;
+
+/// The largest `⌊ε⌋` randomized response accepts: the flip probability
+/// `1/(1 + e^ε)` is below `2^-91` there, and the work grows with `⌊ε⌋`
+pub const RR_MAX_EPSILON_WHOLE: u64 = 63;
+
+/// 1 with probability `e^−ε / (1 + e^−ε) = 1/(1 + e^ε)` for `ε = rate`:
+/// each round draws a fair coin and `B ~ Bernoulli(e^−ε)`; heads
+/// accepts "keep", tails accepts "flip" when `B = 1`, and anything else
+/// rejects the round. Given acceptance, "flip" has probability
+/// `(e^−ε/2) / (1/2 + e^−ε/2)`. All [`RR_ROUNDS`] rounds run; the first
+/// accepted one decides and, if none is, the bit is kept.
+// CONSTANT-TIME: fixed work and keystream draws for every value
+fn rr_flip(rate: Ratio, rng: &mut SecureRng) -> u128 {
+    let mut result = 0u128;
+    let mut found = 0u128;
+    for _ in 0..RR_ROUNDS {
+        let heads = u128::from(rng.next_u64() & 1);
+        let b = bernoulli_exp_neg_any(rate, rng);
+        let accept = mask(heads | b);
+        result = select(!found & accept, 1 - heads, result);
+        found |= accept;
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -916,6 +970,83 @@ pub fn dp_sum(
     }
     #[allow(clippy::cast_precision_loss)]
     Ok(total as f64 * lattice)
+}
+
+/// Differentially private integer: `value + Z`, `Z` discrete Laplace with
+/// decay `ε / Δ` per unit, `P(Z = z) = (1 − e^−ε/Δ) / (1 + e^−ε/Δ) ·
+/// e^(−(ε/Δ)·|z|)`
+///
+/// For integer-valued queries whose sensitivity is a whole number `Δ`: the
+/// lattice is the integers (`Λ = 1`), so nothing is rounded, and the output is
+/// (ε, δ)-differentially private with the δ of the module doc. [`dp_count`]
+/// is the case `Δ = 1` for a non-negative count. The noise is sampled with
+/// integer arithmetic only and draws a number of keystream words fixed by ε
+/// and Δ (`tests/dp_cost_model.rs`).
+///
+/// An overflowing `value + Z` is refused with [`DpError::CountOutOfRange`], not
+/// clamped: a clamped output would reveal that the noise ran past the limit.
+///
+/// # Errors
+///
+/// [`DpError::InvalidScale`] when `sensitivity` is 0 or `epsilon` is not
+/// finite and positive, [`DpError::EpsilonOutOfRange`] when `ε / Δ` does not
+/// fit the sampler's exact rationals, [`DpError::CountOutOfRange`] when
+/// `value + Z` does not fit an `i64`.
+pub fn dp_int(
+    value: i64,
+    sensitivity: u64,
+    epsilon: f64,
+    rng: &mut SecureRng,
+) -> Result<i64, DpError> {
+    if sensitivity == 0 {
+        return Err(DpError::InvalidScale);
+    }
+    let (m, e) = dyadic(epsilon).ok_or(DpError::InvalidScale)?;
+    let rate = ratio_from_parts(m, sensitivity, e).ok_or(DpError::EpsilonOutOfRange)?;
+    let z = discrete_laplace(rate, rng);
+    i64::try_from(i128::from(value) + z).map_err(|_| DpError::CountOutOfRange)
+}
+
+/// Randomized response: the true bit with probability `e^ε / (1 + e^ε)`, the
+/// flipped bit otherwise, which is ε-differentially private for one bit (up to
+/// the δ of `scripts/dp_rr_exact.py`)
+///
+/// ε is converted exactly from its `f64` value; the flip is drawn with the
+/// integer Bernoulli steps of the discrete Laplace sampler, so no
+/// floating-point `exp` decides it. The work and the keystream words drawn
+/// depend only on ε, not on the bit or the outcome.
+///
+/// # Errors
+///
+/// [`DpError::InvalidScale`] when `epsilon` is not finite and positive,
+/// [`DpError::EpsilonOutOfRange`] when its exact rational does not fit the
+/// sampler or `⌊ε⌋ >` [`RR_MAX_EPSILON_WHOLE`].
+pub fn randomized_response(bit: bool, epsilon: f64, rng: &mut SecureRng) -> Result<bool, DpError> {
+    let (m, e) = dyadic(epsilon).ok_or(DpError::InvalidScale)?;
+    let rate = ratio_from_parts(m, 1, e).ok_or(DpError::EpsilonOutOfRange)?;
+    if exp_neg_whole_steps(rate) > u128::from(RR_MAX_EPSILON_WHOLE) {
+        return Err(DpError::EpsilonOutOfRange);
+    }
+    let flip = rr_flip(rate, rng);
+    Ok(u128::from(bit) ^ flip == 1)
+}
+
+/// `true` with probability exactly `num / den` (up to the `den / 2^256`
+/// statistical distance of the uniform draw), with fixed work: one uniform
+/// 256-bit draw (4 keystream words) compared against `num`
+///
+/// Takes the probability as an exact fraction, not an `f64`, so there is no
+/// rounded entry point. Internally `num` and `den` are widened to 128 bits, so
+/// no arithmetic overflows for any `u64` pair.
+///
+/// # Errors
+///
+/// [`DpError::InvalidProbability`] when `den == 0` or `num > den`.
+pub fn bernoulli_ratio(num: u64, den: u64, rng: &mut SecureRng) -> Result<bool, DpError> {
+    if den == 0 || num > den {
+        return Err(DpError::InvalidProbability);
+    }
+    Ok(bernoulli_ct(u128::from(num), u128::from(den), rng) == 1)
 }
 
 #[cfg(test)]

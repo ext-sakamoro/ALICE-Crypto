@@ -122,7 +122,10 @@ pub mod sss;
 pub mod stream;
 
 // Re-exports
-pub use dp::{dp_count, dp_sum, DpError, DpNoise, EntropyError, SecureRng};
+pub use dp::{
+    bernoulli_ratio, dp_count, dp_int, dp_sum, randomized_response, DpError, DpNoise, EntropyError,
+    SecureRng, RR_MAX_EPSILON_WHOLE,
+};
 pub use gf256::{batch_inv, batch_inv_stack, GF};
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
 pub use kdf::{password_stretch, HkdfBlake3, Prk};
