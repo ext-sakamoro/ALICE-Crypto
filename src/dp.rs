@@ -176,7 +176,10 @@ const LAST_COUNTER: u32 = u32::MAX - 1;
 /// continues at counter 0 of nonce stream `n + 1`. Counter `2^32 − 1` is never
 /// used. Before 0.4.0 the generator asked for that block and panicked after
 /// `2^32 − 1` blocks (about 256 GiB, a few million noise draws); everything
-/// before it is unchanged.
+/// before it is unchanged. After nonce stream `2^32 − 1` the 64-bit block index
+/// wraps to stream 0, counter 0, so one key's keystream repeats after `2^64`
+/// blocks (`2^70` bytes): unreachable in practice, and a key must be rotated
+/// long before.
 #[derive(Clone)]
 pub struct SecureRng {
     key: [u8; 32],
@@ -1018,13 +1021,19 @@ pub fn dp_int(
     epsilon: f64,
     rng: &mut SecureRng,
 ) -> Result<i64, DpError> {
+    let rate = int_rate(sensitivity, epsilon)?;
+    let z = discrete_laplace(rate, rng);
+    i64::try_from(i128::from(value) + z).map_err(|_| DpError::CountOutOfRange)
+}
+
+/// The exact decay `ε / Δ` of [`dp_int`]: ε's `f64` value as a dyadic rational
+/// over the integer Δ, nothing rounded
+fn int_rate(sensitivity: u64, epsilon: f64) -> Result<Ratio, DpError> {
     if sensitivity == 0 {
         return Err(DpError::InvalidScale);
     }
     let (m, e) = dyadic(epsilon).ok_or(DpError::InvalidScale)?;
-    let rate = ratio_from_parts(m, sensitivity, e).ok_or(DpError::EpsilonOutOfRange)?;
-    let z = discrete_laplace(rate, rng);
-    i64::try_from(i128::from(value) + z).map_err(|_| DpError::CountOutOfRange)
+    ratio_from_parts(m, sensitivity, e).ok_or(DpError::EpsilonOutOfRange)
 }
 
 /// Randomized response: the true bit with probability `e^ε / (1 + e^ε)`, the
@@ -1067,6 +1076,31 @@ pub fn bernoulli_ratio(num: u64, den: u64, rng: &mut SecureRng) -> Result<bool, 
         return Err(DpError::InvalidProbability);
     }
     Ok(bernoulli_ct(u128::from(num), u128::from(den), rng) == 1)
+}
+
+#[cfg(test)]
+mod int_rate_tests {
+    use super::{int_rate, Ratio};
+
+    /// ε = 0.1 is not an `f32` value; its `f64` value is exactly
+    /// 0x1999999999999a · 2^-56 (from the IEEE 754 bits, independent of the
+    /// code under test). The decay of `dp_int` with Δ = 3 must be exactly that
+    /// over 3: an implementation rounding ε through `f32` gets a different
+    /// numerator (the draws hardly ever show it, the rate always does)
+    #[test]
+    fn a_non_f32_epsilon_becomes_its_exact_rational() {
+        let eps = 0.1_f64;
+        assert_ne!(f64::from(eps as f32), eps);
+        assert_eq!(eps.to_bits(), 0x3fb9_9999_9999_999a);
+        // 0x1999999999999a has one trailing zero: odd mantissa 0xccccccccccccd
+        // and exponent −55
+        let want = Ratio {
+            num: 0xc_cccc_cccc_cccd,
+            den: 3 << 55,
+        };
+        assert_eq!(int_rate(3, eps), Ok(want));
+        assert_ne!(int_rate(3, f64::from(eps as f32)), Ok(want));
+    }
 }
 
 #[cfg(test)]
