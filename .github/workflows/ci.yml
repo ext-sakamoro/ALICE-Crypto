@@ -99,6 +99,10 @@ jobs:
       # 文書 (module doc の表、README、CHANGELOG) と cost model の数字を突き合わせる
       - name: DP δ budget (exact)
         run: python3 scripts/dp_delta_budget.py
+      - name: No generated file is tracked (tests and check)
+        run: |
+          python3 scripts/test_tracked_generated_check.py
+          python3 scripts/tracked_generated_check.py
 
   doc:
     name: Doc

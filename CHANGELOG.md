@@ -6,6 +6,7 @@ All notable changes to ALICE-Crypto are documented here.
 
 ### Fixed
 - Fuzz の workflow が crash を見つけても成功していた (run の step が `continue-on-error`) crash で job を失敗させ、各 target が 1 件以上の入力を実行したことを確かめ (0 件は失敗)、target ごとの実行数と coverage を job summary に出す `fuzz/regressions/<target>` の入力を毎回 corpus として再生する 手元で 3 target を各 90 秒 (計 3260 万件) 走らせて crash は無かった
+- CI: 生成物 (`__pycache__` / `*.pyc` / `target/` / fuzz の artifacts と corpus / `.DS_Store` / `*.profraw`) が tracked でないことを確かめる (`scripts/tracked_generated_check.py`、ci.yml と preflight、`git ls-files` が 0 件なら失敗) `.gitignore` に `__pycache__/` と `*.pyc` を足した
 
 ## [0.3.0] — 2026-10-09
 
