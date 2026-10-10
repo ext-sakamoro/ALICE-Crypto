@@ -18,6 +18,7 @@ All notable changes to ALICE-Crypto are documented here.
 - 定数時間の検査 (検査 D) の `for` の上限に、公開の rate から決まる `exp_neg_whole_steps` を許す (`laplace_attempts` と同じ扱い) 印の付いた関数は 14 本
 
 ### Fixed
+- **`SecureRng` が keystream の 2^32 − 1 block 目 (約 256 GiB、`dp_int` を ε = 0.5 で数百万回) で panic していた (0.3.0 から)** 32 bit の block counter が最後の値に達すると `chacha20` crate が `StreamCipherError` を返し、`apply_keystream` が panic した 1 つの nonce の stream では counter `0 ..= 2^32 − 2` だけを使い、その次は nonce の stream 番号を 1 進めて counter 0 から続ける (counter `2^32 − 1` は使わない) 境界より前の出力は変わらないので、同じ鍵の再現と既存の固定値はそのまま 試験は境界の 2 block 前から読んで次の stream に入ること、buffer の 70 通りの位置から同じように越えること、crate がその block を拒むこと、境界直後の 2 語の固定値 (独立に書いた Python の RFC 8439 実装でも同じ値)
 - Fuzz の workflow が crash を見つけても成功していた (run の step が `continue-on-error`) crash で job を失敗させ、各 target が 1 件以上の入力を実行したことを確かめ (0 件は失敗)、target ごとの実行数と coverage を job summary に出す `fuzz/regressions/<target>` の入力を毎回 corpus として再生する 手元で 3 target を各 90 秒 (計 3260 万件) 走らせて crash は無かった
 - CI: 生成物 (`__pycache__` / `*.pyc` / `target/` / fuzz の artifacts と corpus / `.DS_Store` / `*.profraw`) が tracked でないことを確かめる (`scripts/tracked_generated_check.py`、ci.yml と preflight、`git ls-files` が 0 件なら失敗) `.gitignore` に `__pycache__/` と `*.pyc` を足した
 

@@ -160,18 +160,30 @@ impl core::fmt::Display for EntropyError {
 /// Keystream blocks generated per cipher setup
 const BUF_BLOCKS: usize = 64;
 
+/// The last ChaCha20 block counter a stream uses (`2^32 − 2`); see `refill`
+const LAST_COUNTER: u32 = u32::MAX - 1;
+
 /// A ChaCha20 keystream, handed out 8 bytes at a time
 ///
 /// The stream is RFC 8439 ChaCha20 over the `chacha20` crate, which this crate
 /// already depends on through `chacha20poly1305`. Keeping one implementation
 /// rather than a second hand-written block function is deliberate: a second
 /// copy of a law is a second thing that can drift.
+///
+/// Keystream definition: block `i` of nonce stream `n` (the 96-bit nonce is
+/// `[0, 0, 0, 0] ‖ n as u32 LE ‖ [0, 0, 0, 0]`) is the RFC 8439 block with
+/// counter `i`, for `i = 0 ..= 2^32 − 2`; after the last one the stream
+/// continues at counter 0 of nonce stream `n + 1`. Counter `2^32 − 1` is never
+/// used. Before 0.4.0 the generator asked for that block and panicked after
+/// `2^32 − 1` blocks (about 256 GiB, a few million noise draws); everything
+/// before it is unchanged.
 #[derive(Clone)]
 pub struct SecureRng {
     key: [u8; 32],
     /// Index of the next 64-byte block. The low 32 bits become the RFC
-    /// counter and the high 32 bits select the nonce, so within one key the
-    /// `(counter, nonce)` pair never repeats.
+    /// counter (at most `2^32 − 2`, see the keystream definition) and the high
+    /// 32 bits select the nonce, so within one key the `(counter, nonce)` pair
+    /// never repeats.
     block: u64,
     /// Up to [`BUF_BLOCKS`] consecutive keystream blocks
     buf: [u8; 64 * BUF_BLOCKS],
@@ -235,9 +247,17 @@ impl SecureRng {
     /// [`BUF_BLOCKS`] blocks, never crossing a counter wrap (the nonce changes
     /// there), so the stream is the same as one block at a time
     fn refill(&mut self) {
+        // A stream yields counters 0 ..= 2^32 − 2: the `chacha20` crate
+        // refuses the block at counter 2^32 − 1 (its 32-bit counter would wrap
+        // after it), and asking for it panicked after 2^32 − 1 blocks (≈ 256 GiB
+        // of keystream). At that point the next block is counter 0 of the next
+        // stream (the 32-bit value in nonce bytes 4..8)
+        if self.block & 0xffff_ffff == u64::from(LAST_COUNTER) + 1 {
+            self.block = (self.block | 0xffff_ffff).wrapping_add(1);
+        }
         let counter = (self.block & 0xffff_ffff) as u32;
         let stream = (self.block >> 32) as u32;
-        let left_in_nonce = (1u64 << 32) - u64::from(counter);
+        let left_in_nonce = u64::from(LAST_COUNTER) + 1 - u64::from(counter);
         #[allow(clippy::cast_possible_truncation)]
         let blocks = left_in_nonce.min(BUF_BLOCKS as u64) as usize;
         let mut nonce = [0u8; 12];
@@ -1047,6 +1067,104 @@ pub fn bernoulli_ratio(num: u64, den: u64, rng: &mut SecureRng) -> Result<bool, 
         return Err(DpError::InvalidProbability);
     }
     Ok(bernoulli_ct(u128::from(num), u128::from(den), rng) == 1)
+}
+
+#[cfg(test)]
+impl SecureRng {
+    /// A generator positioned at keystream block `block` (the boundary tests
+    /// cannot draw 256 GiB to get there)
+    fn at_block(key: [u8; 32], block: u64) -> Self {
+        let mut rng = Self {
+            key,
+            block,
+            buf: [0u8; 64 * BUF_BLOCKS],
+            len: 0,
+            pos: 0,
+            words: 0,
+        };
+        rng.refill();
+        rng
+    }
+}
+
+#[cfg(test)]
+mod keystream_boundary_tests {
+    use super::{SecureRng, LAST_COUNTER};
+    use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
+    use chacha20::ChaCha20;
+
+    const KEY: [u8; 32] = [7; 32];
+
+    /// The RFC 8439 block with `counter` under nonce stream `stream`, from the
+    /// cipher directly (one block, no buffering, no generator logic)
+    fn block(stream: u32, counter: u32) -> [u8; 64] {
+        let mut nonce = [0u8; 12];
+        nonce[4..8].copy_from_slice(&stream.to_le_bytes());
+        let mut c = ChaCha20::new(&KEY.into(), &nonce.into());
+        c.seek(u64::from(counter) * 64);
+        let mut out = [0u8; 64];
+        c.apply_keystream(&mut out);
+        out
+    }
+
+    fn words(b: &[u8; 64]) -> Vec<u64> {
+        (0..8)
+            .map(|i| u64::from_le_bytes(b[i * 8..i * 8 + 8].try_into().unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn the_crate_refuses_the_block_at_counter_two_to_the_32_minus_one() {
+        // why the generator stops one block early: this is the panic 0.3.0 hit
+        let mut c = ChaCha20::new(&KEY.into(), &[0u8; 12].into());
+        c.seek(u64::from(u32::MAX) * 64);
+        let mut out = [0u8; 64];
+        assert!(c.try_apply_keystream(&mut out).is_err());
+        // and the block before it is fine
+        let mut c = ChaCha20::new(&KEY.into(), &[0u8; 12].into());
+        c.seek(u64::from(LAST_COUNTER) * 64);
+        assert!(c.try_apply_keystream(&mut out).is_ok());
+    }
+
+    #[test]
+    fn the_stream_crosses_the_last_counter_into_the_next_nonce_without_panicking() {
+        // start 2 blocks before the end of stream 0: words come from counters
+        // 2^32 − 3, 2^32 − 2, then counter 0 of stream 1, then counter 1
+        let mut rng = SecureRng::at_block(KEY, u64::from(LAST_COUNTER) - 1);
+        let mut want = Vec::new();
+        for (s, c) in [(0, LAST_COUNTER - 1), (0, LAST_COUNTER), (1, 0), (1, 1)] {
+            want.extend(words(&block(s, c)));
+        }
+        let got: Vec<u64> = (0..want.len()).map(|_| rng.next_u64()).collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn the_boundary_is_crossed_the_same_way_from_any_buffer_alignment() {
+        // a refill that would have reached counter 2^32 − 1 is cut there,
+        // whatever block the buffer started on
+        for back in 1..=70u64 {
+            let mut rng = SecureRng::at_block(KEY, u64::from(LAST_COUNTER) + 1 - back);
+            for _ in 0..back * 8 {
+                let _ = rng.next_u64();
+            }
+            assert_eq!(rng.next_u64(), words(&block(1, 0))[0], "back = {back}");
+        }
+    }
+
+    #[test]
+    fn the_first_words_after_the_boundary_are_pinned() {
+        // golden: the first two words of stream 1 under key [7; 32]; the value
+        // was also computed with an independent pure-Python RFC 8439 block
+        // function (checked against RFC 8439 §2.3.2 first). A change means the
+        // keystream definition changed
+        let w = words(&block(1, 0));
+        let mut rng = SecureRng::at_block(KEY, u64::from(LAST_COUNTER) + 1);
+        assert_eq!([rng.next_u64(), rng.next_u64()], [w[0], w[1]]);
+        assert_eq!(format!("{:016x} {:016x}", w[0], w[1]), BOUNDARY_GOLDEN);
+    }
+
+    const BOUNDARY_GOLDEN: &str = "ef65ba9909737c6d a5f18c19346a3cdf";
 }
 
 #[cfg(test)]
