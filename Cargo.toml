@@ -1,6 +1,6 @@
 [package]
 name = "alice-crypto"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
 description = "Information-theoretic security primitives for ALICE"
@@ -9,13 +9,13 @@ repository = "https://github.com/ext-sakamoro/ALICE-Crypto"
 keywords = ["crypto", "sss", "shamir", "blake3", "no_std"]
 categories = ["cryptography", "no-std"]
 
-[lib]
-crate-type = ["lib", "cdylib"]
-
 [features]
 default = ["std"]
 std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
 alloc = ["blake3/traits-preview"]
+# Deprecated no-op, removed in 0.5.0: the crate never exported a C ABI, and the
+# cdylib output it belonged to was dropped in 0.4.1. Kept so `features = ["ffi"]`
+# keeps compiling
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
 # 詳細 https://docs.rs/getrandom/0.2/getrandom/macro.register_custom_getrandom.html

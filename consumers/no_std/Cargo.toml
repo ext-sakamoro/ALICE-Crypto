@@ -1,0 +1,21 @@
+# A downstream crate that depends on alice-crypto without std, the way a
+# bare-metal or wasm consumer does. CI builds it for thumbv7em-none-eabihf and
+# wasm32-unknown-unknown: a crate-type or feature in alice-crypto that needs std
+# (an allocator, a panic handler) fails here, where `cargo rustc --crate-type
+# rlib` on alice-crypto itself would hide it
+[package]
+name = "alice-crypto-no-std-consumer"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+alice-crypto = { path = "../..", default-features = false }
+
+[features]
+# getrandom has no backend on bare metal; the final binary registers one
+custom-rng = ["alice-crypto/custom-rng"]
+alloc = ["alice-crypto/alloc"]
+
+# not a member of any workspace above it
+[workspace]

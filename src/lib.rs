@@ -72,7 +72,7 @@
 //! |---------|---------|-------------|
 //! | `std` | yes | Standard library support (OS RNG, std I/O) |
 //! | `alloc` | no | Heap allocation without std (embedded / WASM) |
-//! | `ffi` | no | C-compatible cdylib exports (implies `std`) |
+//! | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
 //!
 //! ## Quick Start
 //!

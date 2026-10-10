@@ -5,11 +5,11 @@ name: CI
 # at least once.
 # 2026-09-15 新設 (それまで fuzz / security-audit のみで test / clippy / doc は CI 未実行、crates.io 公開 crate):
 # - test / clippy / doc を default + full native feature set (std,ffi) で `-D warnings`
-# - no_std job: `crate-type` に cdylib を含むため `cargo check --no-default-features` は panic_handler /
-#   allocator 要求で落ちる → `cargo rustc --crate-type rlib`、bare-metal thumbv7em は getrandom 非対応 target
-#   なので `custom-rng` feature (getrandom/custom) 込みで build (rust-toolchain.toml の `targets` で
-#   pinned toolchain 側に target install)
-# - feature-powerset: std 固定 depth 2 (std なしの組合せは cdylib link 要求で落ちるため no_std job 側で検証)
+# - no_std job: 0.4.0 までは `crate-type` に cdylib があり、std なしの build は panic_handler /
+#   allocator を要求して落ちた (thumbv7em は cdylib を黙って落とすので見えなかった) 0.4.1 で cdylib を外し、
+#   `consumers/no_std` (std なしで依存する下流 crate) を host / wasm32-unknown-unknown / thumbv7em で build する
+#   bare-metal と wasm32-unknown-unknown は getrandom 非対応 target なので `custom-rng` 込み
+# - feature-powerset: std 固定 depth 2 (std なしの組合せは no_std job で検証)
 # - sibling path dep なし (2026-09-16: no-op だった stub action は撤去)
 
 on:
@@ -52,7 +52,7 @@ jobs:
         run: cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings
 
   no_std:
-    name: no_std (rlib、host + bare-metal thumbv7em)
+    name: no_std (host + wasm32 + bare-metal thumbv7em, and a downstream crate)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -61,17 +61,20 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Build (no_std, host, no alloc)
-        run: cargo rustc --lib --no-default-features --crate-type rlib
+        run: cargo build --lib --no-default-features
       - name: Build (no_std + alloc, host)
-        run: cargo rustc --lib --no-default-features --features alloc --crate-type rlib
+        run: cargo build --lib --no-default-features --features alloc
       - name: Build (no_std + alloc + custom-rng, bare-metal thumbv7em-none-eabihf)
-        run: cargo rustc --lib --no-default-features --features alloc,custom-rng --crate-type rlib --target thumbv7em-none-eabihf
-      # cargo clippy は crate-type を上書きできないので clippy-driver を wrapper で差す
+        run: cargo build --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf
       - name: Clippy (no_std + alloc + custom-rng, bare-metal)
-        run: >-
-          RUSTC_WORKSPACE_WRAPPER="$(rustup which clippy-driver)"
-          cargo rustc --lib --no-default-features --features alloc,custom-rng --crate-type rlib
-          --target thumbv7em-none-eabihf -- -D warnings
+        run: cargo clippy --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf -- -D warnings
+      # a crate that depends on alice-crypto without std builds the declared
+      # crate-types, which the builds above (of alice-crypto itself) do not show
+      # the way a user sees them; both rlibs must be reported for every target
+      - name: Downstream no_std crate (host, wasm32-unknown-unknown, thumbv7em)
+        run: python3 scripts/no_std_consumer.py
+      - name: Downstream no_std crate (checker tests)
+        run: python3 scripts/test_no_std_consumer.py
 
   feature-powerset:
     name: Feature powerset (cargo-hack, std 固定, depth 2)

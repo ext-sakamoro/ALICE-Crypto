@@ -4,6 +4,17 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+## [0.4.1] — 2026-10-11
+
+### Changed
+- **破壊的変更 (build 出力):** `[lib] crate-type` から `cdylib` を外した (`lib` だけになる) std なし (`default-features = false`) で依存する crate の build が、host と `wasm32-unknown-unknown` で「no global memory allocator found」「`#[panic_handler]` function required」で失敗していた (cdylib は最終成果物として allocator と panic handler を要求する Cargo は crate-type を feature で切り替えられない) `thumbv7em-none-eabihf` は cdylib を警告つきで落とすので、これまでの no_std の CI では見えなかった Rust の API は変わらない (`cargo semver-checks` は crate-type を API として扱わない) cdylib の出力を使っていた利用者は無いことを確かめた: `src/` には履歴の全体でも公開済の 0.3.0 / 0.4.0 でも `extern "C"` / `#[no_mangle]` が無く、cdylib は C の記号を 1 つも出していなかった 依存している 15 repo はすべて Rust の依存として使っており、`ffi` を有効にしているものも、`libalice_crypto` / C header / `DllImport` を参照するものも無い
+
+### Deprecated
+- `ffi` feature: 何も切り替えない (`ffi = ["std"]` だけで、`feature = "ffi"` で gate された code は無い) `features = ["ffi"]` が compile し続けるように残し、0.5.0 で削除する README と crate の doc の「C-compatible cdylib exports」は誤りだったので直した
+
+### Added
+- CI (no_std job): `consumers/no_std` (std なしで alice-crypto に依存する下流 crate) を host / `wasm32-unknown-unknown` / `thumbv7em-none-eabihf` で build し、cargo の JSON の出力から両方の crate の rlib が報告されたことを確かめる (`scripts/no_std_consumer.py`、build の失敗と build 0 件は失敗) cdylib を戻すと host と wasm32 の 3 件が red になる alice-crypto 自身の no_std の build は `cargo rustc --crate-type rlib` の回避をやめて `cargo build` / `cargo clippy` にした
+
 ## [0.4.0] — 2026-10-10
 
 ### Added

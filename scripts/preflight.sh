@@ -51,19 +51,23 @@ relint
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings )
 
 step "ci.yml / no_std: Build (no_std, host, no alloc)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo rustc --lib --no-default-features --crate-type rlib )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features )
 
 step "ci.yml / no_std: Build (no_std + alloc, host)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo rustc --lib --no-default-features --features alloc --crate-type rlib )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features --features alloc )
 
 step "ci.yml / no_std: Build (no_std + alloc + custom-rng, bare-metal thumbv7em-none-eabihf)"
 rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo rustc --lib --no-default-features --features alloc,custom-rng --crate-type rlib --target thumbv7em-none-eabihf )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf )
 
 step "ci.yml / no_std: Clippy (no_std + alloc + custom-rng, bare-metal)"
 relint
-rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; RUSTC_WORKSPACE_WRAPPER="$(rustup which clippy-driver)" cargo rustc --lib --no-default-features --features alloc,custom-rng --crate-type rlib --target thumbv7em-none-eabihf -- -D warnings )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf -- -D warnings )
+
+step "ci.yml / no_std: Downstream no_std crate (host, wasm32-unknown-unknown, thumbv7em)"
+rustup target list --installed | grep -q '^wasm32-unknown-unknown$' || rustup target add wasm32-unknown-unknown
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; python3 scripts/no_std_consumer.py )
+python3 scripts/test_no_std_consumer.py
 
 step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 2)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std )

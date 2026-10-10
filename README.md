@@ -50,7 +50,7 @@ alice-crypto = { version = "0.1" }
 |---------|---------|-------------|
 | `std` | yes | Standard library support (enables OS RNG, std I/O) |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
-| `ffi` | no | C-compatible cdylib exports (implies `std`) |
+| `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
 
 For `no_std` environments (embedded, RTOS, WASM):
 
