@@ -4,6 +4,9 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+### Fixed
+- Fuzz の workflow が crash を見つけても成功していた (run の step が `continue-on-error`) crash で job を失敗させ、各 target が 1 件以上の入力を実行したことを確かめ (0 件は失敗)、target ごとの実行数と coverage を job summary に出す `fuzz/regressions/<target>` の入力を毎回 corpus として再生する 手元で 3 target を各 90 秒 (計 3260 万件) 走らせて crash は無かった
+
 ## [0.3.0] — 2026-10-09
 
 ### Security
