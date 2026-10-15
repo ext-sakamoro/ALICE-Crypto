@@ -1,0 +1,100 @@
+# ALICE-Law conformance manifest for this crate (alice-crypto). One entry per
+# gate defined in ALICE-Law's conformance/gates.toml; the schema (status /
+# evidence / since / note / reference_repo) is the "Manifest" section of
+# docs/CONFORMANCE.md in that repository.
+#
+# Every entry was written from a measurement on this repository at the commit
+# this file is added on: the library and test suites were run (default and
+# release profile), clippy was run with the crate's own configuration, and a
+# type-resolved disallowed-methods probe (not committed) was run over every
+# feature set. This crate has no Law wiring yet (no clippy ban list, no
+# release or aarch64 test leg, no arithmetic identifier, no public-text step),
+# so no gate is `pass`: `unverified` means not decided by a committed check,
+# `fail-known` means checked and the required thing is absent at the place
+# named. The floating-point code of this crate is the dp module; its sampler is
+# integer arithmetic with exact rational budgets, and the f64 operations in
+# src/dp.rs are conversions, bit manipulation and exact scaling.
+
+[G1]
+status = "unverified"
+since = ""
+note = "A probe with a type-resolved disallowed-methods list (every banned f32/f64 method of the G1 list plus powi, max and min, not committed) over cargo clippy --lib for the default, --no-default-features, --no-default-features --features alloc, --features std,ffi and --features custom-rng builds reported 0 sites in src/; adding f64::sin to src/hash.rs made the probe report it (and the addition was reverted), so the library has no direct call today. Unmet: the crate has no clippy.toml and no CI job with disallowed-methods, no canary test, and no dependency on alice-det-math, so nothing committed keeps it that way. The probe also reports f64::exp, f64::powi, f64::max and f64::min in the reference oracles tests/dp_discrete_laplace_oracle.rs:28,29,51,82,83,86,113,115, tests/dp_mechanisms_oracle.rs:27,28,107, tests/dp_noise_oracle.rs:298,299 and tests/dp_lattice_oracle.rs:89 (independent closed-form references, outside src/). The choice for powi (pending in the G1 list) is not stated by the crate."
+reference_repo = ""
+
+[G2]
+status = "unverified"
+since = ""
+note = "The G2 probe (f32/f64 max and min banned, not committed) reports 0 sites in src/ in every feature set; the only max/min calls in src/ are on integers (src/dp.rs:265 u64::min, src/kdf.rs:83 usize::min). Unmet: no committed clippy ban, no Law max/min helper, no raw_* manifest, no SIMD width list (the crate has no SIMD code) and no (+0,-0) test, so the gate has no committed check. The oracles tests/dp_noise_oracle.rs:298-299 call f64::min and f64::max outside src/."
+reference_repo = ""
+
+[G3]
+status = "unverified"
+since = ""
+note = "src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today, but the repository has no syntax-tree checker for it and no canary, so the absence is not kept by a committed check."
+reference_repo = ""
+
+[G4]
+status = "fail-known"
+since = ""
+note = "Absent: no test pins signed-zero or exact-cancellation inputs of the f64 code against fixed bit patterns (the bit-level tests that exist are src/dp.rs:360 on the open-interval draw and tests/dp_noise_oracle.rs:55 on the RFC 8439 keystream), and .github/workflows/ci.yml has one test job (ci.yml:28-38) on ubuntu-latest (ci.yml:30) running cargo test in the debug profile: there is no {debug, release} x {x86_64, aarch64} matrix and no leg marked required."
+reference_repo = ""
+
+[G5]
+status = "fail-known"
+since = ""
+note = "Absent: .github/workflows/ci.yml:36 and :38 run cargo test and cargo test --features \"$NATIVE_FEATURES\" without --release on ubuntu-latest (ci.yml:30), and no workflow has an aarch64 runner. cargo test --release was run locally on the commit this file is added on (all 9 test binaries ok) but no CI leg runs it. Cargo.toml:48 sets opt-level = 3 for the test profile, which optimises the tests but is not the release profile and not an aarch64 leg."
+reference_repo = ""
+
+[G6]
+status = "fail-known"
+since = ""
+note = "Absent: src/lib.rs (203 lines) exports no SEMANTICS_ID or equivalent and no test pins one (grep for SEMANTICS finds nothing in src, tests and CHANGELOG.md). The dp module is the crate's Law-bearing part (a key reproduces the same noise, src/dp.rs, tests/dp_noise_oracle.rs:104), so its pins (lattice rule, BERNOULLI_STEPS, the keystream construction) are not folded into an identifier, and Cargo.toml has no alice-det-math dependency to fold an upstream identifier from."
+reference_repo = ""
+
+[G7]
+status = "unverified"
+since = ""
+note = "Not decided. The type-erasing entry points are src/stream.rs:262 seal and :285 open (nonce plus ciphertext bytes), the key store in src/keystore.rs and the signature bytes in src/signature.rs; they carry bytes, and the crate receives no Law-bearing value of another crate (no dependency on one), but without a G6 identifier there is nothing to compare, and whether a DP key or noise stream counts as a Law-bearing value crossing a boundary is not decided. The crate has no extern \"C\", no_mangle, wasm-bindgen, pyo3, dyn Any or build.rs (grep over src and the repository root)."
+reference_repo = ""
+
+[G8]
+status = "unverified"
+since = ""
+note = "Not decided. The durable forms the crate writes are src/stream.rs seal (nonce plus ciphertext) and the key store of src/keystore.rs; neither stores a dp output or an arithmetic identifier, and the dp noise is re-derived from a key, not stored. Without a G6 identifier there is nothing to persist; whether the sealed forms are Law-bearing is the open question."
+reference_repo = ""
+
+[G9]
+status = "unverified"
+since = ""
+note = "Depends on G6 and G8: the crate has no identifier, so there is no identifier history to audit (git log -S SEMANTICS_ID has nothing to find)."
+reference_repo = ""
+
+[G10]
+status = "unverified"
+since = ""
+note = "src/ reads no wall clock or monotonic clock (the probe with SystemTime::now and Instant::now banned reports 0 in src/; the one Instant::now is tests/dp_timing.rs:25). It reads OS entropy at src/stream.rs:60 and :104, src/keystore.rs:110 and :172, src/sss.rs:115, src/signature.rs:33 and src/dp.rs:243 (DpNoise::try_from_entropy and the Laplace mechanism's try_from_entropy at :880): key, nonce and share generation of a cryptographic crate, with the deterministic path taking the key as a parameter (dp::SecureRng::with_key, DpNoise::with_key at :857). Whether those entropy constructors are inside the gate is a design decision not made here, and no lint or CI scan with a canary exists."
+reference_repo = ""
+
+[G11]
+status = "unverified"
+since = ""
+note = "No Law gate is committed, so none has a canary, a compared-nothing failure or a shared-copy check to list. The crate's other checkers do carry them: scripts/constant_time_guard.py (check C fails on 0 compared, test scripts/test_constant_time_guard.py), scripts/no_std_consumer.py (scripts/test_no_std_consumer.py) and scripts/tracked_generated_check.py (scripts/test_tracked_generated_check.py), but those are not Law gates."
+reference_repo = ""
+
+[G12]
+status = "fail-known"
+since = ""
+note = "Absent: no workflow runs ALICE-Law's scripts/public_text_check.py (no step in .github/workflows/ci.yml, fuzz.yml or security-audit.yml, no pin file). Running that script from ALICE-Law origin/main with --tree HEAD on this repository reported 6 findings in 47 files, all comment text copied from a shared CI template: .github/workflows/fuzz.yml:77, .github/workflows/security-audit.yml:126 and :199, deny.toml:29, :34 and :61."
+reference_repo = ""
+
+[G13]
+status = "unverified"
+since = ""
+note = "src, tests, fuzz and consumers contain no HashMap, HashSet, rayon, std::thread or par_iter (grep), so no output depends on an unspecified order today; the probe with HashMap::iter and HashSet::iter banned reports 0. Unmet: no committed lint and no allowlist keep it that way."
+reference_repo = ""
+
+[G14]
+status = "fail-known"
+since = ""
+note = "The build configuration sets no fast-math-style flag and no target-cpu=native: no .cargo directory, no build.rs, the only RUSTFLAGS is -Dwarnings (.github/workflows/ci.yml:24), Cargo.toml has [profile.release] and [profile.test] and [profile.bench] with no flag of that kind. Unmet: there is no CI scan step over those places, and no test asserts round-to-nearest-even or that subnormals are not flushed to zero (grep for subnormal, denormal and round-to-nearest in src and tests finds nothing)."
+reference_repo = ""
