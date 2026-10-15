@@ -30,7 +30,7 @@ reference_repo = ""
 [G3]
 status = "fail-known"
 since = ""
-note = "Absent: no syntax-tree checker for an outer negation of an fma result in scripts/ or any workflow step, and no canary or tests for one. src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today, so no outer negation exists today."
+note = "Absent: no syntax-tree checker for an outer negation of an fma result in scripts/ or any workflow step, and no canary or tests for one. src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today."
 reference_repo = ""
 
 [G4]
