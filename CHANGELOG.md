@@ -5,7 +5,7 @@ All notable changes to ALICE-Crypto are documented here.
 ## [Unreleased]
 
 ### Added
-- `alice-law-conformance.toml`: ALICE-Law の 14 gate を実測した宣言を置いた pass は 0 件、fail-known は 6 件 (G4 / G5 / G6 / G10 / G12 / G14)、unverified は 8 件 変えたのは宣言だけで code と CI は変えていない
+- `alice-law-conformance.toml`: ALICE-Law の 14 gate を実測した宣言を置いた pass は 0 件、fail-known は 10 件 (G1 / G2 / G3 / G4 / G5 / G6 / G10 / G12 / G13 / G14)、unverified は 4 件 (G7 / G8 / G9 / G11) 変えたのは宣言だけで code と CI は変えていない
 
 ## [0.4.1] — 2026-10-11
 

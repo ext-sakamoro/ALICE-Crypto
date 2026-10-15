@@ -9,28 +9,28 @@
 # type-resolved disallowed-methods probe (not committed) was run over every
 # feature set. This crate has no Law wiring yet (no clippy ban list, no
 # release or aarch64 test leg, no arithmetic identifier, no public-text step),
-# so no gate is `pass`: `unverified` means not decided by a committed check,
-# `fail-known` means checked and the required thing is absent at the place
-# named. The floating-point code of this crate is the dp module; its sampler is
+# so no gate is `pass`: `unverified` means not checked yet,
+# `fail-known` means checked and the requirement is unmet, with the place
+# (or the absent file, step or test) named. The floating-point code of this crate is the dp module; its sampler is
 # integer arithmetic with exact rational budgets, and the f64 operations in
 # src/dp.rs are conversions, bit manipulation and exact scaling.
 
 [G1]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "A probe with a type-resolved disallowed-methods list (every banned f32/f64 method of the G1 list plus powi, max and min, not committed) over cargo clippy --lib for the default, --no-default-features, --no-default-features --features alloc, --features std,ffi and --features custom-rng builds reported 0 sites in src/; adding f64::sin to src/hash.rs made the probe report it (and the addition was reverted), so the library has no direct call today. Unmet: the crate has no clippy.toml and no CI job with disallowed-methods, no canary test, and no dependency on alice-det-math, so nothing committed keeps it that way. The probe also reports f64::exp, f64::powi, f64::max and f64::min in the reference oracles tests/dp_discrete_laplace_oracle.rs:28,29,51,82,83,86,113,115, tests/dp_mechanisms_oracle.rs:27,28,107, tests/dp_noise_oracle.rs:298,299 and tests/dp_lattice_oracle.rs:89 (independent closed-form references, outside src/). The choice for powi (pending in the G1 list) is not stated by the crate."
+note = "Absent: the repository has no clippy.toml or .clippy.toml (so no disallowed-methods list), the clippy steps at .github/workflows/ci.yml:49-52 run cargo clippy with -D warnings only and no disallowed_methods ban, and there is no canary test. A probe with a type-resolved disallowed-methods list (every banned f32/f64 method of the G1 list plus powi, max and min, not committed) over cargo clippy --lib for the default, --no-default-features, --no-default-features --features alloc, --features std,ffi and --features custom-rng builds reported 0 sites in src/; adding f64::sin to src/hash.rs made the probe report it (and the addition was reverted), so the library has no direct call today. The crate also has no dependency on alice-det-math, so nothing committed keeps it that way. The probe also reports f64::exp, f64::powi, f64::max and f64::min in the reference oracles tests/dp_discrete_laplace_oracle.rs:28,29,51,82,83,86,113,115, tests/dp_mechanisms_oracle.rs:27,28,107, tests/dp_noise_oracle.rs:298,299 and tests/dp_lattice_oracle.rs:89 (independent closed-form references, outside src/). The choice for powi (pending in the G1 list) is not stated by the crate."
 reference_repo = ""
 
 [G2]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "The G2 probe (f32/f64 max and min banned, not committed) reports 0 sites in src/ in every feature set; the only max/min calls in src/ are on integers (src/dp.rs:265 u64::min, src/kdf.rs:83 usize::min). Unmet: no committed clippy ban, no Law max/min helper, no raw_* manifest, no SIMD width list (the crate has no SIMD code) and no (+0,-0) test, so the gate has no committed check. The oracles tests/dp_noise_oracle.rs:298-299 call f64::min and f64::max outside src/."
+note = "Absent: no clippy.toml (no ban on f32/f64 max and min; the clippy steps at .github/workflows/ci.yml:49-52 have none), no Law max/min helper, no raw_* manifest and its check script, and no per-width (+0,-0) test. The G2 probe (f32/f64 max and min banned, not committed) reports 0 sites in src/ in every feature set; the only max/min calls in src/ are on integers (src/dp.rs:265 u64::min, src/kdf.rs:83 usize::min). The crate has no SIMD code. The oracles tests/dp_noise_oracle.rs:298-299 call f64::min and f64::max outside src/."
 reference_repo = ""
 
 [G3]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today, but the repository has no syntax-tree checker for it and no canary, so the absence is not kept by a committed check."
+note = "Absent: no syntax-tree checker for an outer negation of an fma result in scripts/ or any workflow step, and no canary or tests for one. src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today, so no outer negation exists today."
 reference_repo = ""
 
 [G4]
@@ -42,7 +42,7 @@ reference_repo = ""
 [G5]
 status = "fail-known"
 since = ""
-note = "Absent: .github/workflows/ci.yml:36 and :38 run cargo test and cargo test --features \"$NATIVE_FEATURES\" without --release on ubuntu-latest (ci.yml:30), and no workflow has an aarch64 runner. cargo test --release was run locally on the commit this file is added on (all 9 test binaries ok) but no CI leg runs it. Cargo.toml:48 sets opt-level = 3 for the test profile, which optimises the tests but is not the release profile and not an aarch64 leg."
+note = "Absent: .github/workflows/ci.yml:36 and :38 run cargo test and cargo test --features \"$NATIVE_FEATURES\" without --release on ubuntu-latest (ci.yml:30), and no workflow has an aarch64 runner. cargo test --release was run locally on the commit this file is added on (all 9 test binaries ok) but no CI leg runs it. Cargo.toml:49 (under [profile.test] at :48) sets opt-level = 3 for the test profile, which optimises the tests but is not the release profile and not an aarch64 leg."
 reference_repo = ""
 
 [G6]
@@ -84,13 +84,13 @@ reference_repo = ""
 [G12]
 status = "fail-known"
 since = ""
-note = "Absent: no workflow runs ALICE-Law's scripts/public_text_check.py (no step in .github/workflows/ci.yml, fuzz.yml or security-audit.yml, no pin file). Running that script from ALICE-Law origin/main with --tree HEAD on this repository reported 6 findings in 47 files, all comment text copied from a shared CI template: .github/workflows/fuzz.yml:77, .github/workflows/security-audit.yml:126 and :199, deny.toml:29, :34 and :61."
+note = "Absent: no workflow runs ALICE-Law's scripts/public_text_check.py (no step in .github/workflows/ci.yml, fuzz.yml or security-audit.yml, no pin file). Running that script from ALICE-Law origin/main with --tree HEAD on this repository reported 6 findings in 48 files at the commit that adds this file (47 files at its parent), all comment text copied from a shared CI template: .github/workflows/fuzz.yml:77, .github/workflows/security-audit.yml:126 and :199, deny.toml:29, :34 and :61."
 reference_repo = ""
 
 [G13]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "src, tests, fuzz and consumers contain no HashMap, HashSet, rayon, std::thread or par_iter (grep), so no output depends on an unspecified order today; the probe with HashMap::iter and HashSet::iter banned reports 0. Unmet: no committed lint and no allowlist keep it that way."
+note = "Absent: no clippy.toml ban on HashMap/HashSet iteration (the clippy steps at .github/workflows/ci.yml:49-52 have none), no allowlist and no ordered-reduction test. src, tests, fuzz and consumers contain no HashMap, HashSet, rayon, std::thread or par_iter (grep), so no output depends on an unspecified order today; the probe with HashMap::iter and HashSet::iter banned reports 0. "
 reference_repo = ""
 
 [G14]
