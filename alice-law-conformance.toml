@@ -30,7 +30,7 @@ reference_repo = ""
 [G3]
 status = "fail-known"
 since = ""
-note = "Absent: no syntax-tree checker for an outer negation of an fma result in scripts/ or any workflow step, and no canary or tests for one. src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today."
+note = "Absent: no step in .github/workflows/ci.yml (nor in fuzz.yml or security-audit.yml) runs a syntax-tree checker for an outer negation of an fma result, no such script exists under scripts/, and no canary or tests for one exist. src/ has no mul_add call (grep over src, tests, fuzz and consumers finds none) so no outer negation of an fma result exists today."
 reference_repo = ""
 
 [G4]
@@ -96,5 +96,5 @@ reference_repo = ""
 [G14]
 status = "fail-known"
 since = ""
-note = "The build configuration sets no fast-math-style flag and no target-cpu=native: no .cargo directory, no build.rs, the only RUSTFLAGS is -Dwarnings (.github/workflows/ci.yml:24), Cargo.toml has [profile.release] and [profile.test] and [profile.bench] with no flag of that kind. Unmet: there is no CI scan step over those places, and no test asserts round-to-nearest-even or that subnormals are not flushed to zero (grep for subnormal, denormal and round-to-nearest in src and tests finds nothing)."
+note = "The build configuration sets no fast-math-style flag and no target-cpu=native: no .cargo directory, no build.rs, the only RUSTFLAGS is -Dwarnings (.github/workflows/ci.yml:24), Cargo.toml has [profile.release] and [profile.test] and [profile.bench] with no flag of that kind. Unmet: there is no scan step over those places in .github/workflows/ci.yml (nor in fuzz.yml or security-audit.yml), and no test asserts round-to-nearest-even or that subnormals are not flushed to zero (grep for subnormal, denormal and round-to-nearest in src and tests finds nothing)."
 reference_repo = ""
