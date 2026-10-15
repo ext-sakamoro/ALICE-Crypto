@@ -70,9 +70,9 @@ note = "Depends on G6 and G8: the crate has no identifier, so there is no identi
 reference_repo = ""
 
 [G10]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "src/ reads no wall clock or monotonic clock (the probe with SystemTime::now and Instant::now banned reports 0 in src/; the one Instant::now is tests/dp_timing.rs:25). It reads OS entropy at src/stream.rs:60 and :104, src/keystore.rs:110 and :172, src/sss.rs:115, src/signature.rs:33 and src/dp.rs:243 (DpNoise::try_from_entropy and the Laplace mechanism's try_from_entropy at :880): key, nonce and share generation of a cryptographic crate, with the deterministic path taking the key as a parameter (dp::SecureRng::with_key, DpNoise::with_key at :857). Whether those entropy constructors are inside the gate is a design decision not made here, and no lint or CI scan with a canary exists."
+note = "The dp noise is the Law-bearing part (a key reproduces it: tests/dp_noise_oracle.rs:104), and two constructors seed it from OS entropy instead of a caller-supplied key: src/dp.rs:243 (SecureRng::try_from_entropy, getrandom::getrandom) and src/dp.rs:880 (the mechanism's try_from_entropy, which calls it at :882); the deterministic path is with_key (src/dp.rs:857). No lint or CI scan with a canary exists. src/ reads no wall clock or monotonic clock (the probe with SystemTime::now and Instant::now banned reports 0 in src/; the one Instant::now is tests/dp_timing.rs:25). Other OS entropy reads are cryptographic key, nonce, share and signature generation, not Law-bearing output, and are listed as outside the gate pending an owner decision: src/stream.rs:60 and :104, src/keystore.rs:110 and :172, src/sss.rs:115, src/signature.rs:33."
 reference_repo = ""
 
 [G11]
