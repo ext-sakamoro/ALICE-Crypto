@@ -7,9 +7,9 @@
 # this file is added on: the library and test suites were run (default and
 # release profile), clippy was run with the crate's own configuration, and a
 # type-resolved disallowed-methods probe (not committed) was run over every
-# feature set. This crate has no Law wiring yet (no clippy ban list, no
-# release or aarch64 test leg, no arithmetic identifier, no public-text step),
-# so no gate is `pass`: `unverified` means not checked yet,
+# feature set. The Law wiring is partial (no clippy ban list, no release or
+# aarch64 test leg, no arithmetic identifier); G12 and G14 are `pass` with a
+# measured mutant, and the other gates are not: `unverified` means not checked yet,
 # `fail-known` means checked and the requirement is unmet, with the place
 # (or the absent file, step or test) named. The floating-point code of this crate is the dp module; its sampler is
 # integer arithmetic with exact rational budgets, and the f64 operations in
@@ -82,10 +82,17 @@ note = "No Law gate is committed, so none has a canary, a compared-nothing failu
 reference_repo = ""
 
 [G12]
-status = "fail-known"
+status = "pass"
+evidence = [
+    ".github/workflows/public-text.yml (pushes to main and ci/**, pull requests to main)",
+    "scripts/public_text.sh (fetches ALICE-Law's scripts/public_text_check.py at the pinned revision, refuses it unless the SHA-256 matches, exits 2 when it compared nothing)",
+    ".github/public-text-pin (rev 779fa443f95bc0caca5ca2d5bdb9156051fd6143, sha256 e439fdd7495e45486b67d57d227f828426b703c0224b8a00d2e8a1c2f1e66594)",
+    "scripts/test_public_text.py",
+    "scripts/preflight.sh (step public-text.yml / public-text)",
+]
+mutant = "in a throwaway clone at this commit, commit a README.md line naming a development-process role and run PUBLIC_TEXT_BASE=<previous commit> scripts/public_text.sh: it reports `found: README.md:395: agent process`, `public text: 1 findings in 64 files at HEAD` and exits 1; the unchanged tree reports `public text: 0 findings in 64 files at HEAD` and exits 0 (measured 2026-10-16)"
 since = ""
-note = "Absent: no workflow runs ALICE-Law's scripts/public_text_check.py (no step in .github/workflows/ci.yml, fuzz.yml or security-audit.yml, no pin file). Running that script from ALICE-Law origin/main with --tree HEAD on this repository reported 6 findings in 48 files at the commit that adds this file (47 files at its parent), all comment text copied from a shared CI template: .github/workflows/fuzz.yml:77, .github/workflows/security-audit.yml:126 and :199, deny.toml:29, :34 and :61."
-reference_repo = ""
+reference_repo = "ALICE-DB"
 
 [G13]
 status = "fail-known"

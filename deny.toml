@@ -26,12 +26,11 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 version = 2
 yanked = "deny"
 ignore = [
-    # canonical CI template から継承 (ALICE-* エコシステム標準の
-    # unmaintained / transitive dep 由来 warning)
+    # unmaintained / transitive dep 由来の warning (informational only、CVE ではない)
     "RUSTSEC-2024-0436",  # paste 1.0.15 unmaintained (proc-macro transitive)
     "RUSTSEC-2025-0141",  # bincode 2.x unmaintained (postcard 移行コスト高)
     "RUSTSEC-2026-0192",  # ttf-parser unmaintained (egui / font transitive)
-    "RUSTSEC-2026-0204",  # (canonical template 継承、ecosystem 標準 ignore)
+    "RUSTSEC-2026-0204",  # unmaintained (ALICE-* で共通の ignore)
     "RUSTSEC-2025-0020",  # PyString::from_object buffer overflow (0.24.1+ で fix)
     "RUSTSEC-2026-0176",  # pyo3 nth/nth_back OOB (0.29 で fix)
     "RUSTSEC-2026-0177",  # pyo3 PyCFunction::new_closure Sync 欠落 (0.29 で fix)
@@ -58,7 +57,7 @@ allow = [
     "BSL-1.0",
     "MPL-2.0",
     "OpenSSL",
-    # Font-related licenses (canonical 罠 #14)
+    # Font-related licenses
     "OFL-1.1",
     "Ubuntu-font-1.0",
     # LLVM ecosystem

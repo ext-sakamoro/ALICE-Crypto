@@ -7,6 +7,7 @@ All notable changes to ALICE-Crypto are documented here.
 ### Added
 - CI (ALICE-Law G14): 浮動小数点の結果を変える build の flag を静的と動的の 2 段で検査し、round-to-nearest-even と subnormal が flush されないことを実行時に確かめる (ALICE-DB と同一の `scripts/build_config_guard.py` / `scripts/build_flags_check.py` / `tests/float_environment.rs` と test、`scripts/run_tests.sh` / `scripts/test_run_tests.py`) 新しい float-environment job (ubuntu / macOS / Windows) で test を debug と release で `scripts/run_tests.sh float_environment=2` を通して実行し (2 本とも通らなければ失敗)、静的な検査を走らせ、ubuntu / macOS では新しい target dir で `cargo check -v` を走らせて rustc に実際に渡った flag を読む (default / full native feature set / no-default) 意図的な出現は `scripts/build_config_allowlist.toml` に理由付きで書く `alice-law-conformance.toml` の G14 を fail-known から pass にした
 - `alice-law-conformance.toml`: ALICE-Law の 14 gate を実測した宣言を置いた pass は 0 件、fail-known は 10 件 (G1 / G2 / G3 / G4 / G5 / G6 / G10 / G12 / G13 / G14)、unverified は 4 件 (G7 / G8 / G9 / G11) 変えたのは宣言だけで code と CI は変えていない
+- CI: 公開する文面の検査 (`Public text` workflow、`scripts/public_text.sh`) を追加 ALICE-Law の `scripts/public_text_check.py` を `.github/public-text-pin` の revision (779fa44) で取得し、SHA-256 が一致した時だけ使って、HEAD の全 tracked file (path と本文) と送った commit (message・追加行・追加 path) を読む 何も比較できなければ失敗する preflight でも走る
 
 ### Changed
 
