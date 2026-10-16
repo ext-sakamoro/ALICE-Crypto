@@ -49,6 +49,13 @@ step "ci.yml / clippy: Clippy (full native feature set, all targets)"
 relint
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings )
 
+step "ci.yml / clippy: Clippy canary data (generator tests, generated from clippy.toml, no drift)"
+python3 scripts/test_gen_clippy_canary_calls.py
+python3 scripts/gen_clippy_canary_calls.py --check
+
+step "ci.yml / clippy: Clippy canary (tests)"
+python3 scripts/test_clippy_canary.py
+
 step "ci.yml / no_std: Build (no_std, host, no alloc)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features )
 
@@ -217,6 +224,9 @@ fi
 step "public-text.yml / public-text: Public text (ALICE-Law checker at the pin; tree, then the commits)"
 python3 scripts/test_public_text.py
 scripts/public_text.sh
+
+step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
+python3 scripts/clippy_canary.py
 
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0

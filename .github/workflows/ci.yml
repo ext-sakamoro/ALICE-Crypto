@@ -87,6 +87,20 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Clippy (full native feature set, all targets)
         run: cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings
+      # the list in clippy.toml (ALICE-Law G1) only gates anything if clippy
+      # flags a call to it: a throwaway crate with the same clippy.toml plants
+      # one banned call per row of scripts/clippy_canary_calls.tsv (0 rows
+      # fail). The rows are generated from clippy.toml, one per
+      # disallowed-methods / disallowed-types entry; --check fails when the file
+      # has drifted from clippy.toml
+      - name: Clippy canary data (generator tests)
+        run: python3 scripts/test_gen_clippy_canary_calls.py
+      - name: Clippy canary data (generated from clippy.toml, no drift)
+        run: python3 scripts/gen_clippy_canary_calls.py --check
+      - name: Clippy canary (tests)
+        run: python3 scripts/test_clippy_canary.py
+      - name: Clippy canary (every planted banned call is flagged)
+        run: python3 scripts/clippy_canary.py
 
   no_std:
     name: no_std (host + wasm32 + bare-metal thumbv7em, and a downstream crate)
