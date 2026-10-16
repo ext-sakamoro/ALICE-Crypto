@@ -76,9 +76,9 @@ note = "The dp noise is the Law-bearing part (a key reproduces it: tests/dp_nois
 reference_repo = ""
 
 [G11]
-status = "unverified"
+status = "fail-known"
 since = ""
-note = "No Law gate is committed, so none has a canary, a compared-nothing failure or a shared-copy check to list. The crate's other checkers do carry them: scripts/constant_time_guard.py (check C fails on 0 compared, test scripts/test_constant_time_guard.py), scripts/no_std_consumer.py (scripts/test_no_std_consumer.py) and scripts/tracked_generated_check.py (scripts/test_tracked_generated_check.py), but those are not Law gates."
+note = "No Law gate is committed, so none has a canary, a compared-nothing failure or a shared-copy check to list. The crate's other checkers do carry them: scripts/constant_time_guard.py (check C fails on 0 compared, test scripts/test_constant_time_guard.py), scripts/no_std_consumer.py (scripts/test_no_std_consumer.py) and scripts/tracked_generated_check.py (scripts/test_tracked_generated_check.py), but those are not Law gates. Two located absences: there is no clippy.toml (nor .clippy.toml) at the repository root, so there is no G1 ban list and the clippy canary shared with ALICE-DB (scripts/clippy_canary.py, scripts/gen_clippy_canary_calls.py and their tests) has nothing to plant; it is added together with that list. For clause (c), scripts/semver_gate.py and scripts/test_semver_gate.py are byte-identical copies shared with ALICE-Law, ALICE-DB and other crates, and nothing in this repository or its CI compares them with their source."
 reference_repo = ""
 
 [G12]
