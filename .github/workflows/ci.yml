@@ -108,6 +108,14 @@ jobs:
         run: python3 scripts/test_clippy_canary.py
       - name: Clippy canary (every planted banned call is flagged)
         run: python3 scripts/clippy_canary.py
+      # a ban on an external crate's function covers that one path: every
+      # public function of each external module the list names (getrandom,
+      # read from rustdoc JSON of the version in Cargo.lock) must be banned
+      # or allowed with a reason in scripts/clippy_external_allow.toml
+      - name: Clippy external coverage (tests)
+        run: python3 scripts/test_clippy_external_coverage.py
+      - name: Clippy external coverage (every public function of a named module is banned or allowed)
+        run: python3 scripts/clippy_external_coverage.py
 
   no_std:
     name: no_std (host + wasm32 + bare-metal thumbv7em, and a downstream crate)

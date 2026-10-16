@@ -56,6 +56,10 @@ python3 scripts/gen_clippy_canary_calls.py --check
 step "ci.yml / clippy: Clippy canary (tests)"
 python3 scripts/test_clippy_canary.py
 
+step "ci.yml / clippy: Clippy external coverage (tests, then every public function of a named module is banned or allowed)"
+python3 scripts/test_clippy_external_coverage.py
+python3 scripts/clippy_external_coverage.py
+
 step "ci.yml / no_std: Build (no_std, host, no alloc)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features )
 
