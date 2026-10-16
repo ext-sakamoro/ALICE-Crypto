@@ -24,6 +24,10 @@ use alice_crypto::dp::{dp_count, DpError, SecureRng};
 const N: usize = 30_000;
 
 /// P(Z = z) for the discrete Laplace distribution with parameter ε
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn pmf(eps: f64, z: i64) -> f64 {
     let q = (-eps).exp();
     (1.0 - q) / (1.0 + q) * q.powi(i32::try_from(z.abs()).expect("small"))
@@ -71,6 +75,10 @@ fn the_noise_follows_the_discrete_laplace_pmf_at_epsilon_one() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn the_noise_follows_the_pmf_for_a_non_dyadic_epsilon() {
     // 0.1 is not a dyadic rational; its f64 value is converted exactly
     let eps = 0.1;
@@ -92,6 +100,10 @@ fn the_noise_follows_the_pmf_for_a_non_dyadic_epsilon() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn the_noise_is_symmetric_and_the_ratio_of_neighbours_is_e_to_minus_epsilon() {
     let eps = 0.5;
     let xs = noises(eps, 13);

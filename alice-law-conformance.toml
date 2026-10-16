@@ -7,24 +7,30 @@
 # this file is added on: the library and test suites were run (default and
 # release profile), clippy was run with the crate's own configuration, and a
 # type-resolved disallowed-methods probe (not committed) was run over every
-# feature set. The Law wiring is partial (no clippy ban list, no release or
-# aarch64 test leg, no arithmetic identifier); G12 and G14 are `pass` with a
-# measured mutant, and the other gates are not: `unverified` means not checked yet,
+# feature set. The Law wiring is partial (no release or aarch64 test leg, no
+# arithmetic identifier); G1, G12 and G14 are `pass` with a measured mutant, and the other gates are not: `unverified` means not checked yet,
 # `fail-known` means checked and the requirement is unmet, with the place
 # (or the absent file, step or test) named. The floating-point code of this crate is the dp module; its sampler is
 # integer arithmetic with exact rational budgets, and the f64 operations in
 # src/dp.rs are conversions, bit manipulation and exact scaling.
 
 [G1]
-status = "fail-known"
+status = "pass"
+evidence = [
+    "clippy.toml disallowed-methods (lines 28 to 79: every f32 and f64 method gates.toml marks banned, sin_cos at lines 30 and 56, plus powi, the pending default, banned for both); the entries are the f32 / f64 method part of the ALICE-DB and alice-zip lists (52 entries; the libm free functions of the alice-zip list are not needed, see the last item)",
+    ".github/workflows/ci.yml clippy job: default, all targets (line 87); full native feature set std,ffi, all targets (line 89); no_std job: alloc + custom-rng, lib, thumbv7em-none-eabihf (line 121); every run -D warnings; scripts/preflight.sh lines 46, 50 and 70 run the same sets. src/ has no feature-gated code (only the crate-level no_std attribute), so the library sets above lint every line of it",
+    "scripts/clippy_canary.py with scripts/clippy_canary_calls.tsv, which scripts/gen_clippy_canary_calls.py generates from clippy.toml with one row per disallowed-methods / disallowed-types entry (52 planted, 0 skipped; f64::sin and f64::sin_cos are lines 36 and 38): each call is planted in a throwaway crate that copies clippy.toml and must get exactly one disallowed diagnostic naming it, every clippy.toml entry must have exactly one row, 0 rows or 0 entries fail; scripts/test_clippy_canary.py and scripts/test_gen_clippy_canary_calls.py (all four byte-identical to ALICE-DB); run by .github/workflows/ci.yml lines 96 to 103 and scripts/preflight.sh lines 53, 54, 57 and 229",
+    "Cargo.toml has no libm dependency and Cargo.lock has no libm package, so no libm free function can be named from this crate's source; every float transcendental is a method on f32 / f64, which the list covers",
+]
+mutant = "measured 2026-10-17, each reverted: deleting the f64::exp entry from clippy.toml makes scripts/clippy_canary.py exit 1 with 'data line 50: `f64::exp` is not listed under disallowed-methods in clippy.toml'; adding `let _ = core::hint::black_box(0.5_f64).sin();` to hash() in src/hash.rs makes the default all-targets clippy step exit 101 with disallowed method `f64::sin` at src/hash.rs:50"
 since = ""
-note = "Absent: the repository has no clippy.toml or .clippy.toml (so no disallowed-methods list), the clippy steps at .github/workflows/ci.yml:49-52 run cargo clippy with -D warnings only and no disallowed_methods ban, and there is no canary test. A probe with a type-resolved disallowed-methods list (every banned f32/f64 method of the G1 list plus powi, max and min, not committed) over cargo clippy --lib for the default, --no-default-features, --no-default-features --features alloc, --features std,ffi and --features custom-rng builds reported 0 sites in src/; adding f64::sin to src/hash.rs made the probe report it (and the addition was reverted), so the library has no direct call today. The crate also has no dependency on alice-det-math, so nothing committed keeps it that way. The probe also reports f64::exp, f64::powi, f64::max and f64::min in the reference oracles tests/dp_discrete_laplace_oracle.rs:28,29,51,82,83,86,113,115, tests/dp_mechanisms_oracle.rs:27,28,107, tests/dp_noise_oracle.rs:298,299 and tests/dp_lattice_oracle.rs:89 (independent closed-form references, outside src/). The choice for powi (pending in the G1 list) is not stated by the crate."
-reference_repo = ""
+note = "every banned method of the G1 list is in clippy.toml and src/ has 0 sites in every linted set. The banned names that remain are the closed-form references of the dp oracles, each under a scoped #[expect(clippy::disallowed_methods)] with its reason (it fails if the call goes away): tests/dp_discrete_laplace_oracle.rs lines 27, 78 and 103, tests/dp_mechanisms_oracle.rs lines 26 and 100, tests/dp_lattice_oracle.rs line 80 (f64::exp and f64::powi; their expected values must not come from the integer sampler under test). f64::max and f64::min in tests/dp_noise_oracle.rs are G2, not G1."
+reference_repo = "ALICE-DB"
 
 [G2]
 status = "fail-known"
 since = ""
-note = "Absent: no clippy.toml (no ban on f32/f64 max and min; the clippy steps at .github/workflows/ci.yml:49-52 have none), no Law max/min helper, no raw_* manifest and its check script, and no per-width (+0,-0) test. The G2 probe (f32/f64 max and min banned, not committed) reports 0 sites in src/ in every feature set; the only max/min calls in src/ are on integers (src/dp.rs:265 u64::min, src/kdf.rs:83 usize::min). The crate has no SIMD code. The oracles tests/dp_noise_oracle.rs:298-299 call f64::min and f64::max outside src/."
+note = "Absent: clippy.toml has no ban on f32/f64 max and min (its list is G1's), no Law max/min helper, no raw_* manifest and its check script, and no per-width (+0,-0) test. The G2 probe (f32/f64 max and min banned, not committed) reports 0 sites in src/ in every feature set; the only max/min calls in src/ are on integers (src/dp.rs:265 u64::min, src/kdf.rs:83 usize::min). The crate has no SIMD code. The oracles tests/dp_noise_oracle.rs:298-299 call f64::min and f64::max outside src/."
 reference_repo = ""
 
 [G3]
@@ -78,7 +84,7 @@ reference_repo = ""
 [G11]
 status = "fail-known"
 since = ""
-note = "No Law gate is committed, so none has a canary, a compared-nothing failure or a shared-copy check to list. The crate's other checkers do carry them: scripts/constant_time_guard.py (check C fails on 0 compared, test scripts/test_constant_time_guard.py), scripts/no_std_consumer.py (scripts/test_no_std_consumer.py) and scripts/tracked_generated_check.py (scripts/test_tracked_generated_check.py), but those are not Law gates. Two located absences: there is no clippy.toml (nor .clippy.toml) at the repository root, so there is no G1 ban list and the clippy canary shared with ALICE-DB (scripts/clippy_canary.py, scripts/gen_clippy_canary_calls.py and their tests) has nothing to plant; it is added together with that list. For clause (c), scripts/semver_gate.py and scripts/test_semver_gate.py are byte-identical copies shared with ALICE-Law, ALICE-DB and other crates, and nothing in this repository or its CI compares them with their source."
+note = "The G1 gate has a canary and a compared-nothing failure: scripts/clippy_canary.py plants every clippy.toml entry and fails on 0 rows or 0 entries, and scripts/gen_clippy_canary_calls.py --check fails when the rows drift from clippy.toml (see G1). The crate's other checkers carry them too: scripts/constant_time_guard.py (check C fails on 0 compared, test scripts/test_constant_time_guard.py), scripts/no_std_consumer.py (scripts/test_no_std_consumer.py) and scripts/tracked_generated_check.py (scripts/test_tracked_generated_check.py). Located absence for clause (c): scripts/semver_gate.py and scripts/test_semver_gate.py, and the four clippy canary scripts (scripts/clippy_canary.py, scripts/gen_clippy_canary_calls.py, scripts/test_clippy_canary.py, scripts/test_gen_clippy_canary_calls.py), are byte-identical copies shared with ALICE-DB and other crates, and nothing in this repository or its CI compares them with their source."
 reference_repo = ""
 
 [G12]

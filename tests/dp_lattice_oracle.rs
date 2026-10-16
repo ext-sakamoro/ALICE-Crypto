@@ -77,6 +77,10 @@ fn the_value_is_rounded_to_the_nearest_lattice_point_before_the_noise() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn the_noise_has_the_laplace_variance_of_the_declared_scale() {
     // in real units the lattice noise has variance ≈ 2·(Δ/ε)² (Λ is 2^-20 Δ)
     for (delta, eps) in [(1.0, 1.0), (3.0, 0.5)] {

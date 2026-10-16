@@ -23,6 +23,10 @@ fn within(count: usize, n: usize, p: f64, what: &str) {
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn pmf(rate: f64, z: i64) -> f64 {
     let q = (-rate).exp();
     (1.0 - q) / (1.0 + q) * q.powi(i32::try_from(z.abs()).expect("small"))
@@ -93,6 +97,10 @@ fn dp_int_rejects_zero_sensitivity_and_bad_epsilon() {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "independent closed-form reference: the expected value must not come from the integer sampler under test, and a few ulp of platform libm do not move a statistical tolerance"
+)]
 fn randomized_response_flips_with_probability_one_over_one_plus_e_to_epsilon() {
     // ≥ 2·10^5 draws where the work per call is small (⌊ε⌋ = 0); larger ε
     // costs (⌊ε⌋ + 1)× more per call and flips rarely, 4·10^4 draws suffice
