@@ -55,6 +55,10 @@ impl Key {
     ///
     /// Returns [`CipherError::RandomFailed`] if entropy generation fails.
     #[inline(always)]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "secret material generation, not Law output: a cipher key must be unpredictable, and no Law-bearing result is computed from it"
+    )]
     pub fn generate() -> Result<Self, CipherError> {
         let mut k = [0u8; 32];
         getrandom::getrandom(&mut k).map_err(|_| CipherError::RandomFailed)?;
@@ -99,6 +103,10 @@ impl Nonce {
     ///
     /// Returns [`CipherError::RandomFailed`] if entropy generation fails.
     #[inline(always)]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "secret material generation, not Law output: a nonce must be unpredictable, and no Law-bearing result is computed from it"
+    )]
     pub fn generate() -> Result<Self, CipherError> {
         let mut n = [0u8; 24];
         getrandom::getrandom(&mut n).map_err(|_| CipherError::RandomFailed)?;

@@ -28,6 +28,10 @@ impl SigningKey {
     /// # Errors
     ///
     /// OS RNG が利用不可の場合。
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "secret material generation, not Law output: a signing key must be unpredictable, and no Law-bearing result is computed from it"
+    )]
     pub fn generate() -> Result<Self, SignatureError> {
         let mut bytes = [0u8; 32];
         getrandom::getrandom(&mut bytes).map_err(|_| SignatureError::RngFailed)?;

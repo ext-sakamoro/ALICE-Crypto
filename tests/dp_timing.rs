@@ -15,6 +15,10 @@ fn median(mut v: Vec<u128>) -> u128 {
 }
 
 #[test]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "this test measures time on purpose (constant-time check); the duration is compared statistically and is no Law output"
+)]
 fn the_duration_of_a_draw_does_not_depend_on_the_noise_it_draws() {
     let (mut small, mut large) = (Vec::new(), Vec::new());
     for round in 0..3u8 {

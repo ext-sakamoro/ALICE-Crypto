@@ -225,6 +225,10 @@ step "public-text.yml / public-text: Public text (ALICE-Law checker at the pin; 
 python3 scripts/test_public_text.py
 scripts/public_text.sh
 
+step "ci.yml / float-environment: DP noise golden (debug and release)"
+cargo test --test dp_noise_golden
+cargo test --release --test dp_noise_golden
+
 step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
 python3 scripts/clippy_canary.py
 

@@ -68,6 +68,10 @@ const RNG_BUF_SIZE: usize = 1024;
 /// # Errors
 ///
 /// Returns [`SssError`] if the secret is empty or parameters are invalid.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "secret material generation, not Law output: the random polynomial coefficients must be unpredictable, and no Law-bearing result is computed from them"
+)]
 pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
     if secret.is_empty() {
         return Err(SssError::EmptySecret);

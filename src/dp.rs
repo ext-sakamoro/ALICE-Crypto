@@ -238,6 +238,14 @@ impl SecureRng {
     /// [`EntropyError`] when the entropy source is unavailable. ⚠️ Callers must
     /// not fill that in with a clock or a constant — if no key can be obtained,
     /// add no noise and stop.
+    ///
+    /// A stream seeded here cannot be replayed (the key is never seen); use
+    /// [`Self::from_key`] with a stored key when the noise has to be
+    /// reproduced.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "opt-in OS seed: the caller chose a key that is never seen; Law-bearing noise is reproducible only through from_key / with_key"
+    )]
     pub fn try_from_entropy() -> Result<Self, EntropyError> {
         let mut key = [0u8; 32];
         getrandom::getrandom(&mut key).map_err(|_| EntropyError)?;
@@ -877,6 +885,9 @@ impl DpNoise {
     ///
     /// As [`Self::try_with_key`], and [`DpError::Entropy`] when no key can be
     /// obtained. ⚠️ **Never falls back to a clock.**
+    ///
+    /// The noise of a mechanism built here cannot be replayed; use
+    /// [`Self::with_key`] with a stored key when it has to be.
     pub fn try_from_entropy(sensitivity: f64, epsilon: f64) -> Result<Self, DpError> {
         let (lattice, rate) = lattice_and_rate(sensitivity, epsilon)?;
         let rng = SecureRng::try_from_entropy().map_err(DpError::Entropy)?;

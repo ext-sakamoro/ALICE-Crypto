@@ -105,6 +105,10 @@ impl KeyStore {
     /// # Errors
     ///
     /// OS RNG が利用不可の場合。
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "secret material generation, not Law output: a stored key must be unpredictable, and no Law-bearing result is computed from it"
+    )]
     pub fn generate(&mut self, now: u64) -> Result<KeyId, KeyStoreError> {
         let mut key_data = [0u8; 32];
         getrandom::getrandom(&mut key_data).map_err(|_| KeyStoreError::RngFailed)?;
@@ -162,6 +166,10 @@ impl KeyStore {
     /// # Errors
     ///
     /// OS RNG が利用不可の場合。
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "secret material generation, not Law output: a rotated key must be unpredictable, and no Law-bearing result is computed from it"
+    )]
     pub fn rotate(&mut self, now: u64) -> Result<KeyId, KeyStoreError> {
         let prev_gen = self
             .active_id
