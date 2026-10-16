@@ -51,6 +51,7 @@ alice-crypto = { version = "0.1" }
 | `std` | yes | Standard library support (enables OS RNG, std I/O) |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
+| `os-entropy` | no | `SecureRng::try_from_entropy` / `DpNoise::try_from_entropy`: differential-privacy noise seeded from the OS, which cannot be replayed (with a key it can) |
 
 For `no_std` environments (embedded, RTOS, WASM):
 
@@ -292,9 +293,11 @@ let noisy: i64 = dp_count(1_000, 1.0, &mut rng)?;        // count + discrete Lap
 let total = dp_sum(5_423.75, 100.0, 0.5, &mut rng)?;     // sum, sensitivity 100, ε = 0.5
 ```
 
-- Every constructor takes a 32-byte key. The one that does not —
-  `SecureRng::try_from_entropy()` — takes it from the OS and **fails** rather
-  than falling back to anything guessable
+- Every constructor takes a 32-byte key. The ones that do not —
+  `SecureRng::try_from_entropy()` and `DpNoise::try_from_entropy()`, behind
+  the non-default `os-entropy` feature — take it from the OS and **fail**
+  rather than falling back to anything guessable. Their noise cannot be
+  replayed; noise from a key can
 - `dp_count` / `dp_sum` / `DpNoise` take ε (and the sensitivity Δ) and derive
   the noise themselves. ⚠️ An ε that is accepted and then ignored is worse than
   no ε at all, and taking a scale as a parameter is how that happens

@@ -43,11 +43,11 @@ need cargo-machete "cargo install cargo-machete --locked"
 
 step "ci.yml / clippy: Clippy (default features, all targets)"
 relint
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --all-targets -- -D warnings )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo clippy --all-targets -- -D warnings )
 
 step "ci.yml / clippy: Clippy (full native feature set, all targets)"
 relint
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings )
 
 step "ci.yml / clippy: Clippy canary data (generator tests, generated from clippy.toml, no drift)"
 python3 scripts/test_gen_clippy_canary_calls.py
@@ -57,22 +57,22 @@ step "ci.yml / clippy: Clippy canary (tests)"
 python3 scripts/test_clippy_canary.py
 
 step "ci.yml / no_std: Build (no_std, host, no alloc)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo build --lib --no-default-features )
 
 step "ci.yml / no_std: Build (no_std + alloc, host)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features --features alloc )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo build --lib --no-default-features --features alloc )
 
 step "ci.yml / no_std: Build (no_std + alloc + custom-rng, bare-metal thumbv7em-none-eabihf)"
 rustup target list --installed | grep -q '^thumbv7em-none-eabihf$' || rustup target add thumbv7em-none-eabihf
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo build --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo build --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf )
 
 step "ci.yml / no_std: Clippy (no_std + alloc + custom-rng, bare-metal)"
 relint
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf -- -D warnings )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo clippy --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf -- -D warnings )
 
 step "ci.yml / no_std: Downstream no_std crate (host, wasm32-unknown-unknown, thumbv7em)"
 rustup target list --installed | grep -q '^wasm32-unknown-unknown$' || rustup target add wasm32-unknown-unknown
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; python3 scripts/no_std_consumer.py )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; python3 scripts/no_std_consumer.py )
 python3 scripts/test_no_std_consumer.py
 
 step "ci.yml / float-environment: run_tests.sh and build configuration guard (tests, then check)"
@@ -82,17 +82,17 @@ python3 scripts/build_config_guard.py
 python3 scripts/test_build_flags_check.py
 
 step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 2)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo hack check --lib --feature-powerset --depth 2 --features std )
 
 step "ci.yml / fmt: Check formatting"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo fmt -- --check )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo fmt -- --check )
 python3 scripts/dp_delta_budget.py
 python3 scripts/test_tracked_generated_check.py
 python3 scripts/tracked_generated_check.py
 python3 scripts/dp_rr_exact.py
 
 step "ci.yml / doc: Doc (full native feature set)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi" RUSTDOCFLAGS="-Dwarnings"; cargo doc --no-deps --features "$NATIVE_FEATURES" )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy" RUSTDOCFLAGS="-Dwarnings"; cargo doc --no-deps --features "$NATIVE_FEATURES" )
 
 step "ci.yml / actionlint: actionlint"
 actionlint .github/workflows/*.yml
@@ -225,6 +225,10 @@ step "public-text.yml / public-text: Public text (ALICE-Law checker at the pin; 
 python3 scripts/test_public_text.py
 scripts/public_text.sh
 
+step "ci.yml / float-environment: DP noise golden (debug and release)"
+cargo test --test dp_noise_golden
+cargo test --release --test dp_noise_golden
+
 step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
 python3 scripts/clippy_canary.py
 
@@ -238,14 +242,14 @@ scripts/run_tests.sh float_environment=2 -- cargo test --release --test float_en
 
 step "ci.yml / float-environment: Effective rustc flags (default, full native feature set, no default features)"
 python3 scripts/build_flags_check.py -- cargo check --release --lib
-python3 scripts/build_flags_check.py -- cargo check --release --lib --features "std,ffi"
+python3 scripts/build_flags_check.py -- cargo check --release --lib --features "std,ffi,os-entropy"
 python3 scripts/build_flags_check.py -- cargo check --release --lib --no-default-features
 
 step "ci.yml / test: Test (default)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo test )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo test )
 
 step "ci.yml / test: Test (full native feature set)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo test --features "$NATIVE_FEATURES" )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi,os-entropy"; cargo test --features "$NATIVE_FEATURES" )
 
 step "security-audit.yml / audit: Run cargo audit"
 (

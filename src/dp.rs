@@ -14,9 +14,11 @@
 //!   sequence, and without the key the sequence is neither predictable nor
 //!   reproducible.
 //!
-//! So every constructor here takes a key, and the only one that does not —
-//! [`DpNoise::try_from_entropy`] — takes it from the OS and **fails** rather
-//! than falling back to anything guessable.
+//! So every constructor here takes a key, and the only ones that do not —
+//! `SecureRng::try_from_entropy` and `DpNoise::try_from_entropy`, behind the
+//! non-default `os-entropy` feature — take it from the OS and **fail** rather
+//! than falling back to anything guessable. Noise from those cannot be
+//! replayed; with a key it can.
 //!
 //! ⚠️ This module exists because the same defect was found in two ALICE crates
 //! on 2026-10-09: a `xorshift64` generator seeded from the system clock, with
@@ -126,7 +128,8 @@
 //! use alice_crypto::dp::{dp_count, SecureRng};
 //!
 //! // The key is the secret the determinism is anchored to. In production it
-//! // comes from `SecureRng::try_from_entropy()` or from a key store — never
+//! // comes from a key store (or, when the noise need not be replayed, from
+//! // `SecureRng::try_from_entropy()` with the `os-entropy` feature) — never
 //! // from a clock.
 //! let mut rng = SecureRng::from_key([7u8; 32]);
 //! let noisy: i64 = dp_count(1_000, 1.0, &mut rng).expect("epsilon > 0");
@@ -238,6 +241,15 @@ impl SecureRng {
     /// [`EntropyError`] when the entropy source is unavailable. ⚠️ Callers must
     /// not fill that in with a clock or a constant — if no key can be obtained,
     /// add no noise and stop.
+    ///
+    /// Available with the non-default `os-entropy` feature. A stream seeded
+    /// here cannot be replayed (the key is never seen); use [`Self::from_key`]
+    /// with a stored key when the noise has to be reproduced.
+    #[cfg(feature = "os-entropy")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "opt-in OS seed (feature os-entropy): the caller chose a run-varying key; Law-bearing noise is reproducible only through from_key"
+    )]
     pub fn try_from_entropy() -> Result<Self, EntropyError> {
         let mut key = [0u8; 32];
         getrandom::getrandom(&mut key).map_err(|_| EntropyError)?;
@@ -877,6 +889,11 @@ impl DpNoise {
     ///
     /// As [`Self::try_with_key`], and [`DpError::Entropy`] when no key can be
     /// obtained. ⚠️ **Never falls back to a clock.**
+    ///
+    /// Available with the non-default `os-entropy` feature. The noise of a
+    /// mechanism built here cannot be replayed; use [`Self::with_key`] with a
+    /// stored key when it has to be.
+    #[cfg(feature = "os-entropy")]
     pub fn try_from_entropy(sensitivity: f64, epsilon: f64) -> Result<Self, DpError> {
         let (lattice, rate) = lattice_and_rate(sensitivity, epsilon)?;
         let rng = SecureRng::try_from_entropy().map_err(DpError::Entropy)?;

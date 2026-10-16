@@ -1,5 +1,6 @@
-# Determinism gate (ALICE-Law G1) for the floating-point arithmetic of this
-# crate.
+# Determinism gates for this crate: ALICE-Law G1 (the floating-point
+# arithmetic, first list) and G10 (OS entropy and the wall clock, further
+# down).
 #
 # The differential-privacy noise of `dp` is reproduced from a key: the same
 # key gives the same noise on every machine (replay and audit depend on it).
@@ -73,4 +74,25 @@ disallowed-methods = [
     { path = "f64::cbrt", reason = "platform libm is not cross-platform bit-exact; use alice_det_math" },
     { path = "f64::hypot", reason = "platform libm is not cross-platform bit-exact; use alice_det_math" },
     { path = "f64::powi", reason = "lowers to a multiplication tree of unspecified association order; write the multiplications out" },
+    # Determinism gate (ALICE-Law G10): no OS entropy and no wall clock where a
+    # Law-bearing result is computed. The dp noise is reproduced from a key
+    # (`DpNoise::with_key`, `SecureRng::from_key`); the OS-seeded constructors
+    # sit behind the non-default `os-entropy` feature under a scoped allow.
+    # Generating secret material (cipher keys, nonces, signing keys, stored
+    # keys, secret-sharing coefficients) must read OS entropy and is no Law
+    # output: each of those functions carries a scoped allow saying so.
+    { path = "getrandom::getrandom", reason = "OS entropy makes a result vary from run to run; take a key (or seed) as an input" },
+    { path = "std::time::Instant::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::time::Instant::elapsed", reason = "reads the wall clock the same as Instant::now; duration_since on an already-held value is fine, this reads the clock again" },
+    { path = "std::time::SystemTime::elapsed", reason = "reads the wall clock the same as SystemTime::now; duration_since on an already-held value is fine, this reads the clock again" },
+    { path = "std::time::SystemTime::now", reason = "the wall clock makes results depend on timing; pass time in or use a step count" },
+    { path = "std::collections::hash_map::RandomState::new", reason = "seeds from OS randomness and would make HashMap iteration order non-deterministic" },
+]
+disallowed-types = [
+    # disallowed-methods cannot name RandomState::default (a trait method,
+    # not reachable via the implementing type's path alone); naming the type
+    # itself here catches ::default() too, along with any other explicit
+    # naming (a type annotation, a turbofish), without touching HashMap::new's
+    # own internal (unnamed) use of RandomState.
+    { path = "std::collections::hash_map::RandomState", reason = "seeds from OS randomness and would make HashMap iteration order non-deterministic; see disallowed-methods for RandomState::new" },
 ]
