@@ -236,6 +236,10 @@ cargo test --release --test dp_noise_golden
 step "ci.yml / clippy: Clippy canary (every planted banned call is flagged)"
 python3 scripts/clippy_canary.py
 
+step "ci.yml / float-environment: No negated fma result (syntax tree, tests then check)"
+cargo test --quiet --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml
+cargo run --quiet --release --manifest-path tools/no-outer-fneg-of-fma/Cargo.toml -- --root .
+
 if [[ $quick -eq 1 ]]; then
   echo; echo "preflight --quick OK (test / bench suites skipped)"; exit 0
 fi
@@ -275,5 +279,9 @@ python3 scripts/test_semver_gate.py
 step "semver-checks.yml / semver-checks: semver gate (latest crates.io release, every consumer feature set)"
 need cargo-semver-checks "cargo install cargo-semver-checks --version 0.50.0 --locked"
 python3 scripts/semver_gate.py --config .github/semver-gate.toml --target-dir "${CARGO_TARGET_DIR:-target}/semver"
+
+step "g3-ir.yml / ir: probe tests + no negated fma result in alice-crypto's release IR (host build; the per-target floors are checked in CI)"
+python3 scripts/test_fneg_fma_ir_check.py
+python3 scripts/fneg_fma_ir_check.py --package alice-crypto --all-features --findings-only
 
 echo; echo "preflight OK"
