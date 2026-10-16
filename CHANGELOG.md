@@ -7,6 +7,10 @@ All notable changes to ALICE-Crypto are documented here.
 ### Added
 - `alice-law-conformance.toml`: ALICE-Law の 14 gate を実測した宣言を置いた pass は 0 件、fail-known は 10 件 (G1 / G2 / G3 / G4 / G5 / G6 / G10 / G12 / G13 / G14)、unverified は 4 件 (G7 / G8 / G9 / G11) 変えたのは宣言だけで code と CI は変えていない
 
+### Changed
+
+- CI: 公開 API の互換性の検査を `.github/workflows/semver-checks.yml` (`scripts/semver_gate.py`、ALICE-Law / ALICE-DB ほかと同一) に置き換えた crates.io の最新の alice-crypto を baseline にし、既定・既定なし・全 feature の 3 組で cargo semver-checks を走らせ、互換でない変更を失敗させる 版が公開済みの 0.4.1 と同じ間は次の最小の版 0.4.2 として検査する 旧 job (security-audit.yml) は直前の commit (`HEAD~1`) と比べ、結果を問わない informational だった
+
 ## [0.4.1] — 2026-10-11
 
 ### Changed

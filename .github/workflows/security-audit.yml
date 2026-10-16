@@ -1,7 +1,8 @@
 name: Security & Hygiene
 
 # Shared ALICE-* security layout: audit / deny / unused deps / stub guard /
-# package integrity / semver / constant-time guard.
+# package integrity / constant-time guard. The public API check against the latest
+# crates.io release is semver-checks.yml, which gates.
 # ALICE-SDF v1.7.7 (commit 52d26f9) を base に ALICE-Crypto 用に調整
 #
 # 目的:
@@ -244,33 +245,3 @@ jobs:
           name: coverage-summary
           path: coverage-summary.txt
           retention-days: 30
-
-  semver-checks:
-    name: cargo-semver-checks (API compat、informational)
-    runs-on: ubuntu-latest
-    # ALICE-Crypto は publish = false (private crate) のため crates.io baseline なし
-    # git baseline (main~1) で比較、informational only
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0  # baseline-rev 比較のため full history 必要
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      # version 明示 pin: `@latest` は rustc MSRV を追いかける (0.50.0 = 1.93+) ので、
-      # rust-toolchain.toml の pin が遅れると赤になる (2026-09-14 事案) toolchain と
-      # 一緒に月次で bump する
-      - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-semver-checks@0.50.0
-
-      # publish=false のため --baseline-rev で git 経由の比較
-      # main の直前 commit と比較 (informational、break あっても block しない)
-      - name: Run cargo semver-checks
-        run: |
-          cargo semver-checks check-release \
-            --package alice-crypto \
-            --baseline-rev "HEAD~1" \
-            || true
