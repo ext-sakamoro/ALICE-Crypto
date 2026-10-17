@@ -43,7 +43,7 @@ evidence = [
     "scripts/test_fneg_fma_ir_check.py with tools/fneg-fma-ir-probes/*.rs (byte-identical to ALICE-LOL's: 47 probes, 35 negated shapes and 12 safe ones, compiled at test time for an aarch64 and an x86_64 target)",
     "scripts/no-outer-fneg-of-fma-allowlist.toml (expected-fma-calls 0 and expected-src-fma-calls 0, compared exactly; [[ir]] floors 0 for x86_64-unknown-linux-gnu and aarch64-unknown-linux-gnu; no [[allow]] entry)",
     ".github/workflows/ci.yml float-environment job (ubuntu, macOS, Windows): the tool's tests and the check",
-    ".github/workflows/g3-ir.yml (x86_64-unknown-linux-gnu on ubuntu-latest and aarch64-unknown-linux-gnu on ubuntu-24.04-arm, each native because blake3's build script compiles C and assembly; on changes to sources, manifests, the toolchain or the checks, and weekly)",
+    ".github/workflows/g3-ir.yml (x86_64-unknown-linux-gnu on ubuntu-latest and aarch64-unknown-linux-gnu on ubuntu-24.04-arm, each native because blake3's build script compiles C and assembly; a changes job decides the run from merge-base(origin/main) with scripts/changed_paths.py and .github/paths/g3-ir.txt, a gate job is red when the IR job should have run and did not, and weekly)",
 ]
 mutant = "measured 2026-10-17, reverted: `pub fn g3_mutant(a: f32, b: f32, c: f32) -> f32 { -a.mul_add(b, c) }` appended to src/lib.rs makes tools/no-outer-fneg-of-fma exit 1 (`src/lib.rs:207: -a.mul_add(b, c)`, and expected-fma-calls / expected-src-fma-calls = 0 against 1 found) and scripts/fneg_fma_ir_check.py exit 1 (`src/lib.rs:207:5: fneg of a fma result in ...g3_mutant`, aarch64-apple-darwin, 650 functions, 1 fma call, 1 negated)"
 since = ""
