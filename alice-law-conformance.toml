@@ -88,7 +88,7 @@ evidence = [
 ]
 mutant = "measured 2026-10-17, each reverted: an entry changed without its golden fails the_entries_are_exactly_the_recorded_goldens and the_identifier_is_the_fold_of_the_table; a golden re-recorded without its entry fails the first and boolean_mechanisms_are_the_recorded_bits; a golden added without an entry fails the_entries_are_exactly_the_recorded_goldens; CRYPTO_SEMANTICS_CHECKED_AT at 0.4.2 fails the_pins_were_checked_on_this_version_and_toolchain"
 since = ""
-note = "the crate depends on no Law-bearing crate (its noise is integer arithmetic on a ChaCha20 keystream; no floating-point transcendental, so no alice-det-math), so no upstream identifier is folded. The identifier is published as a constant; no wire or file of this crate carries it (G7 / G8 n/a)."
+note = "the crate depends on no Law-bearing crate (its noise is integer arithmetic on a ChaCha20 keystream; no floating-point transcendental, so no alice-det-math), so no upstream identifier is folded. The identifier is published as a constant; no wire or file of this crate carries it (G7 / G8 n/a). The fold covers tests/semantics_golden.rs only: tests/dp_noise_golden.rs (64 privatize draws of a fixed key) and tests/float_edge_golden.rs (the G4 edge cases) pin bits of the same mechanisms but are not folded, so a change that they catch and the five scenarios do not would not move the identifier; folding them is a follow-up."
 reference_repo = "ALICE-DB"
 
 [G7]
