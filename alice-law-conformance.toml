@@ -124,6 +124,7 @@ evidence = [
     "scripts/law_boundary_table.toml: the 35 (file, name) entries with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element)",
     "scripts/test_law_boundary_scan.py: the scanner's own tests",
     ".github/workflows/ci.yml: the clippy job runs the scan",
+    "scripts/id_move_check.py (shared with the other ALICE crates; tests scripts/test_id_move_check.py; config scripts/id_move.toml): watches CRYPTO_SEMANTICS_ID even though nothing persists it: it reads the value from the published release of the newest release tag (alice-crypto 0.4.1 today) and from the working tree and fails when it moved without a breaking version or without CHANGELOG.md naming both values; every [u8; 32] const / static / associated const and public re-export of another crate's constant must be listed or exempt (configuration naming another path fails with `CRYPTO_SEMANTICS_ID (src/semantics.rs:89): ...`); ci.yml clippy job and scripts/preflight.sh; today: CRYPTO_SEMANTICS_ID 65285bfd is new since 0.4.1",
 ]
 mutant = "G9 applies only when G8 does; measured on G8's scan 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)"
 note = "follows G8: the crate persists no Law-bearing value, so there is no persisted identifier whose history could move. CRYPTO_SEMANTICS_ID (G6) is introduced at this commit; if G8 ever applies, its first move is recorded as a major release."

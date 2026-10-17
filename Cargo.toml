@@ -28,8 +28,7 @@ chacha20poly1305 = { version = "0.10", default-features = false, features = ["al
 # chacha20poly1305 が既に引いているので依存木は増えない ⚠️ 手書きの block 関数を
 # 持つと同じ法則の写しが 2 つになるので、実装は 1 つに寄せる
 chacha20 = { version = "0.9", default-features = false }
-# `dp` の逆関数法が使う ln (bit 一致・1 ulp 保証) platform libm だと同じ鍵でも
-# 機械ごとに noise が変わり、replay と監査が成立しない
+# OS の乱数: 鍵・nonce・秘密分散の係数と、`dp` の鍵 (seed を渡さない時) を作る
 getrandom = { version = "0.2", default-features = false }
 # 秘密を落とす時の 0 埋めに使う 手書きの `*b = 0` は「以降読まれない書き込み」として
 # 消されうるので、volatile write + fence を持つ実装に任せる

@@ -41,6 +41,10 @@ need cargo-deny "cargo install cargo-deny --locked"
 need cargo-hack "cargo install cargo-hack --locked"
 need cargo-machete "cargo install cargo-machete --locked"
 
+step "ci.yml / clippy: Identifier moves (tests, then against the published release)"
+python3 scripts/test_id_move_check.py
+python3 scripts/id_move_check.py
+
 step "ci.yml / clippy: Clippy (default features, all targets)"
 relint
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --all-targets -- -D warnings )

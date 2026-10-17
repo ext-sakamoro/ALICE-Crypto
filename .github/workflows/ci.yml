@@ -128,6 +128,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # the release tags: scripts/id_move_check.py compares with the newest one
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -168,6 +171,22 @@ jobs:
         run: python3 scripts/test_clippy_external_coverage.py
       - name: Clippy external coverage (every public function of a named module is banned or allowed)
         run: python3 scripts/clippy_external_coverage.py
+      # G9: an identifier (CRYPTO_SEMANTICS_ID) moves only with a breaking version, with the
+      # released value in its previous list (when it has one) and both values named in
+      # CHANGELOG.md; the released value is read from the published crate at the newest
+      # release tag (scripts/id_move_check.py, shared with the other ALICE crates). A
+      # registry that cannot be read fails on main and warns on ci/ branches and PRs
+      - name: Identifier moves (tests)
+        run: python3 scripts/test_id_move_check.py
+      - name: Identifier moves (the release compared with)
+        id: id-base
+        run: echo "crate=$(python3 scripts/id_move_check.py --print-base)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry/cache/*/${{ steps.id-base.outputs.crate }}.crate
+          key: id-move-${{ steps.id-base.outputs.crate }}
+      - name: Identifier moves (against the published release)
+        run: python3 scripts/id_move_check.py
 
   no_std:
     name: no_std (host + wasm32 + bare-metal thumbv7em, and a downstream crate)
