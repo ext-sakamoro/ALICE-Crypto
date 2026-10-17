@@ -295,8 +295,14 @@ fn the_uniform_draw_never_returns_zero() {
         let u = rng.next_f64_open01();
         assert!(u > 0.0, "the uniform draw returned {u}");
         assert!(u <= 1.0, "the uniform draw returned {u}");
-        min = min.min(u);
-        max = max.max(u);
+        // u is never NaN here (asserted above), so comparisons pick the
+        // same values as min / max
+        if u < min {
+            min = u;
+        }
+        if u > max {
+            max = u;
+        }
     }
     // Teeth: it covers the range rather than sitting in one spot.
     assert!(

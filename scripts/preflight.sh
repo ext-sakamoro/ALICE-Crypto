@@ -49,6 +49,11 @@ step "ci.yml / clippy: Clippy (full native feature set, all targets)"
 relint
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings )
 
+step "ci.yml / clippy: Law boundary scan (tests, then the library's rustdoc JSON)"
+python3 scripts/test_law_boundary_scan.py
+( export RUSTC_BOOTSTRAP=1; cargo rustdoc --lib --features std,ffi -- -Z unstable-options --output-format json )
+python3 scripts/law_boundary_scan.py --json "${CARGO_TARGET_DIR:-target}/doc/alice_crypto.json"
+
 step "ci.yml / clippy: Clippy canary data (generator tests, generated from clippy.toml, no drift)"
 python3 scripts/test_gen_clippy_canary_calls.py
 python3 scripts/gen_clippy_canary_calls.py --check
@@ -259,6 +264,14 @@ step "ci.yml / test: Test (default)"
 
 step "ci.yml / test: Test (full native feature set)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo test --features "$NATIVE_FEATURES" )
+
+step "ci.yml / test: Law tests (semantics goldens and identifier, edge-case goldens)"
+scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+
+step "ci.yml / release: release profile tests"
+cargo test --release
+( export NATIVE_FEATURES="std,ffi"; cargo test --release --features "$NATIVE_FEATURES" )
+scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
 step "security-audit.yml / audit: Run cargo audit"
 (

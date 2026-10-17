@@ -51,8 +51,10 @@ fn assert_frequency(xs: &[i64], z: i64, p: f64, what: &str) {
     let observed = count_of(xs, z) as f64;
     let expected = n * p;
     let sd = (n * p * (1.0 - p)).sqrt();
+    // sd is a finite non-negative value, so the comparison is max(sd, 1)
+    let floor_sd = if sd > 1.0 { sd } else { 1.0 };
     assert!(
-        (observed - expected).abs() <= 6.0 * sd.max(1.0),
+        (observed - expected).abs() <= 6.0 * floor_sd,
         "{what}: P(Z = {z}) observed {observed} of {n}, expected {expected:.1} (sd {sd:.1})"
     );
 }

@@ -53,3 +53,8 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 debug = false
+
+[dev-dependencies]
+# SHA-256 of the recorded-bit scenarios (tests/semantics_golden.rs) and of the
+# semantics identifier fold (tests/crypto_semantics_id.rs)
+sha2 = "0.10"

@@ -1,0 +1,213 @@
+# ALICE-Law G7 / G8 / G9 scope: every public function whose signature takes or returns
+# bytes, keyed by file and name, with its class and why no Law-bearing value crosses it
+# (scripts/law_boundary_scan.py)
+
+[[function]]
+file = "src/dp.rs"
+name = "from_key"
+class = "dp key (input only)"
+reason = "the 32-byte key of the noise stream, taken as input; the mechanism returns a number, never bytes"
+
+[[function]]
+file = "src/dp.rs"
+name = "with_key"
+class = "dp key (input only)"
+reason = "the 32-byte key of the noise stream, taken as input; the mechanism returns a number, never bytes"
+
+[[function]]
+file = "src/dp.rs"
+name = "try_with_key"
+class = "dp key (input only)"
+reason = "the 32-byte key of the noise stream, taken as input; the mechanism returns a number, never bytes"
+
+[[function]]
+file = "src/gf256.rs"
+name = "new"
+class = "field element"
+reason = "a GF(2^8) element built from a byte: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "as_bytes"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "into_bytes"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "hash"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "update"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "keyed_hash"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/hash.rs"
+name = "derive_key"
+class = "digest"
+reason = "a BLAKE3 digest or the bytes it hashes: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "as_bytes"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "extract"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "expand"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "derive"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "derive_key"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "password_stretch"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/keystore.rs"
+name = "key_data"
+class = "key material"
+reason = "stored key bytes: no differential-privacy value"
+
+[[function]]
+file = "src/keystore.rs"
+name = "insert"
+class = "key material"
+reason = "stored key bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "from_bytes"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "as_bytes"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "from_slice"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "sign"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "sign_with_context"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "verify"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/signature.rs"
+name = "verify_with_context"
+class = "signature and keys"
+reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/sss.rs"
+name = "split"
+class = "secret shares"
+reason = "Shamir shares of a secret byte string: no differential-privacy value"
+
+[[function]]
+file = "src/sss.rs"
+name = "recover"
+class = "secret shares"
+reason = "Shamir shares of a secret byte string: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "from_bytes"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "as_bytes"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "encrypt_in_place"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "decrypt_in_place"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "encrypt_in_place_aead"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "decrypt_in_place_aead"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "seal"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "open"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"

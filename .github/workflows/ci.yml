@@ -26,8 +26,15 @@ env:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    # debug on x86_64 (ubuntu) and aarch64 (macOS); ALICE-Law G4 checks the
+    # recorded-bit and edge-case goldens on both
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -36,6 +43,31 @@ jobs:
         run: cargo test
       - name: Test (full native feature set)
         run: cargo test --features "$NATIVE_FEATURES"
+      - name: Law tests (semantics goldens and identifier, edge-case goldens)
+        run: scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+
+  release:
+    # ALICE-Law G4 / G5: the test suite under the release profile on x86_64 (ubuntu) and
+    # aarch64 (macOS); scripts/run_tests.sh fails a binary that ran fewer tests than named
+    name: Release profile tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-tests
+      - name: Test (default, release)
+        run: cargo test --release
+      - name: Test (full native feature set, release)
+        run: cargo test --release --features "$NATIVE_FEATURES"
+      - name: Law tests (release)
+        run: scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
   float-environment:
     # ALICE-Law G14 on each OS: round-to-nearest-even and no flush-to-zero at run
@@ -104,6 +136,16 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Clippy (full native feature set, all targets)
         run: cargo clippy --features "$NATIVE_FEATURES" --all-targets -- -D warnings
+      # ALICE-Law G7 / G8 / G9 scope: no differential-privacy value crosses a byte boundary
+      # (every public function carrying bytes is in scripts/law_boundary_table.toml, and
+      # src/dp.rs only takes a 32-byte key); read from the rustdoc JSON of the library
+      - name: Law boundary scan (tests, then the library's rustdoc JSON)
+        env:
+          RUSTC_BOOTSTRAP: "1"
+        run: |
+          python3 scripts/test_law_boundary_scan.py
+          cargo rustdoc --lib --features "$NATIVE_FEATURES" -- -Z unstable-options --output-format json
+          python3 scripts/law_boundary_scan.py --json target/doc/alice_crypto.json
       # the list in clippy.toml (ALICE-Law G1) only gates anything if clippy
       # flags a call to it: a throwaway crate with the same clippy.toml plants
       # one banned call per row of scripts/clippy_canary_calls.tsv (0 rows
