@@ -93,16 +93,37 @@ reference_repo = "ALICE-DB"
 
 [G7]
 status = "n/a"
+evidence = [
+    "scripts/law_boundary_scan.py: reads the rustdoc JSON of the library (full native features) and lists every public function taking or returning bytes; fails on an unlisted one, a listed one gone, src/dp.rs returning bytes or reading bytes other than a 32-byte key, or a scan that compared nothing",
+    "scripts/law_boundary_table.toml: the 35 (file, name) entries with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element)",
+    "scripts/test_law_boundary_scan.py: the scanner's own tests",
+    ".github/workflows/ci.yml: the clippy job runs the scan",
+]
+mutant = "measured 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)"
 note = "no Law-bearing value of this crate crosses a crate boundary as bytes: measured by scripts/law_boundary_scan.py (tests scripts/test_law_boundary_scan.py, CI clippy job line 142): it reads the rustdoc JSON of the library with the full native feature set and lists every public function whose signature takes or returns bytes — 41 functions, 35 (file, name) entries in scripts/law_boundary_table.toml with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element) — and fails when one is unlisted, when a listed one is gone, when src/dp.rs returns bytes or reads bytes other than a 32-byte key, or when it compares nothing. The Law-bearing outputs (src/dp.rs) are numbers returned in the same process; no function of the crate turns one into bytes or reads one back. Mutant measured 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)."
 reference_repo = "ALICE-DB"
 
 [G8]
 status = "n/a"
+evidence = [
+    "scripts/law_boundary_scan.py: reads the rustdoc JSON of the library (full native features) and lists every public function taking or returning bytes; fails on an unlisted one, a listed one gone, src/dp.rs returning bytes or reading bytes other than a 32-byte key, or a scan that compared nothing",
+    "scripts/law_boundary_table.toml: the 35 (file, name) entries with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element)",
+    "scripts/test_law_boundary_scan.py: the scanner's own tests",
+    ".github/workflows/ci.yml: the clippy job runs the scan",
+]
+mutant = "measured 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)"
 note = "the crate writes no durable form of a Law-bearing value (the sealed stream, the key store and the signatures hold keys, ciphertext and signatures; the dp noise is re-derived from a key, never stored): measured by scripts/law_boundary_scan.py (tests scripts/test_law_boundary_scan.py, CI clippy job line 142): it reads the rustdoc JSON of the library with the full native feature set and lists every public function whose signature takes or returns bytes — 41 functions, 35 (file, name) entries in scripts/law_boundary_table.toml with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element) — and fails when one is unlisted, when a listed one is gone, when src/dp.rs returns bytes or reads bytes other than a 32-byte key, or when it compares nothing. The Law-bearing outputs (src/dp.rs) are numbers returned in the same process; no function of the crate turns one into bytes or reads one back. Mutant measured 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)."
 reference_repo = "ALICE-DB"
 
 [G9]
 status = "n/a"
+evidence = [
+    "scripts/law_boundary_scan.py: reads the rustdoc JSON of the library (full native features) and lists every public function taking or returning bytes; fails on an unlisted one, a listed one gone, src/dp.rs returning bytes or reading bytes other than a 32-byte key, or a scan that compared nothing",
+    "scripts/law_boundary_table.toml: the 35 (file, name) entries with their classes (ciphertext and keys, digests, signatures, secret shares, key material, a field element)",
+    "scripts/test_law_boundary_scan.py: the scanner's own tests",
+    ".github/workflows/ci.yml: the clippy job runs the scan",
+]
+mutant = "G9 applies only when G8 does; measured on G8's scan 2026-10-17, reverted: a `pub fn to_bytes(&self) -> [u8; 8]` on DpNoise makes the scan report `src/dp.rs:942 to_bytes: a Law-bearing module returns bytes` and the unlisted boundary (exit 1)"
 note = "follows G8: the crate persists no Law-bearing value, so there is no persisted identifier whose history could move. CRYPTO_SEMANTICS_ID (G6) is introduced at this commit; if G8 ever applies, its first move is recorded as a major release."
 reference_repo = "ALICE-DB"
 
