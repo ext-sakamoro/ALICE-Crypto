@@ -33,11 +33,13 @@ evidence = [
     "clippy.toml lines 106 to 111: f32 / f64 max, min and clamp banned in every target, no exception (so no raw_* manifest); the Law helper a new site must use is alice-det-math's max / min / clamp",
     "src/ has no float max / min / clamp (the only max / min calls are on integers: src/dp.rs u64::min, src/kdf.rs usize::min); the two test-side calls (tests/dp_noise_oracle.rs, tests/dp_discrete_laplace_oracle.rs) are written as comparisons on values that are never NaN",
     "scripts/clippy_canary.py with scripts/clippy_canary_calls.tsv (68 planted, the six G2 entries among them, each flagged)",
+    "src/dp.rs is the only file under src/ naming f32 or f64 (grep -rlE '\\bf(32|64)\\b' src/); its float comparisons were read one by one: the only one with the shape of a max or min is open01_from_bits (`if u <= 0.0 { OPEN01_STEP } else { u }`), whose operand is built from the bits of a u64 random word (a non-negative multiple of 2^-53, never -0 and never NaN), so no public function returns a max or min of float inputs: no scalar site class, tie_tests = []",
 ]
 mutant = "measured 2026-10-17: before the test-side rewrite, the ban turned tests/dp_discrete_laplace_oracle.rs line 55 (`sd.max(1.0)`) into a clippy error (`use of a disallowed method f64::max`) on the CI default and full commands; the canary plants each of the six entries and fails if one is not flagged"
 since = ""
 note = "no site class exists in src/, so there is no tie test to carry (a new site would be refused by clippy before it could exist). The crate has no SIMD code, so no per-width test."
 reference_repo = "ALICE-Kinematics"
+tie_tests = []
 
 [G3]
 status = "pass"
