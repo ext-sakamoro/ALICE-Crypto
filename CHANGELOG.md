@@ -21,6 +21,7 @@ All notable changes to ALICE-Crypto are documented here.
 
 ### Changed
 
+- CI: `.gitattributes` に `* text=auto eol=lf` を置き、text の file を保存も checkout も全 OS で LF にした (共有 file は ALICE-Law の表と byte で比べるので、Windows の CRLF の checkout ではずれになる) binary と既存の行はそのまま、`git add --renormalize` で commit 済みの中身は変わらない
 - CI (ALICE-Law G3): `tools/no-outer-fneg-of-fma` と `scripts/fneg_fma_ir_check.py` (と試験) を ALICE-LOL と同じ新しい版にした `expected-src-fma-calls` は src/ の library code の fma 呼び出し数 (`#[test]` と test の時だけ成り立つ cfg の下の item と文、test-only の `mod y;` で読み込む file とその子は数えず、test-only の数を別に表示する) この repository の数は変わらない IR 検査は library の source に fma が無いのに IR に fma がある時を失敗にし、library の fma が 0 の時は共有の probe を target ごとに compile して判定を確かめる (0 件実行は失敗) tool は独自の workspace なので repository 全体の format 検査に入っていなかった CI と preflight に tool の format の検査を足した
 - CI: 公開 API の互換性の検査を `.github/workflows/semver-checks.yml` (`scripts/semver_gate.py`、ALICE-Law / ALICE-DB ほかと同一) に置き換えた crates.io の最新の alice-crypto を baseline にし、既定・既定なし・全 feature の 3 組で cargo semver-checks を走らせ、互換でない変更を失敗させる 版が公開済みの 0.4.1 と同じ間は次の最小の版 0.4.2 として検査する 旧 job (security-audit.yml) は直前の commit (`HEAD~1`) と比べ、結果を問わない informational だった
 - `alice-law-conformance.toml`: G11 を fail-known にし、位置の分かる未達を 2 つ記した repository の root に clippy.toml が無いので G1 の禁止一覧も clippy の canary (ALICE-DB と共有) も無い (禁止一覧と一緒に入れる)、共有 file の `scripts/semver_gate.py` と試験を source と比べる検査が無い
