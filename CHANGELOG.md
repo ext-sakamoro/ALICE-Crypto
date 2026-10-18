@@ -5,6 +5,7 @@ All notable changes to ALICE-Crypto are documented here.
 ## [Unreleased]
 
 ### Added
+- CI: text の file の行末の検査 `scripts/check_eol.py` (試験 `scripts/test_check_eol.py`) と `.github/workflows/eol.yml` を足した `git ls-files --eol` で text の file が index か working tree で CRLF / 混在なら失敗 (`-text` と binary は除く、比べた数を出し 0 件は失敗)、workflow は ubuntu / macos / windows で走り、preflight にも同じ検査を足した (ALICE の crate で同じ中身の file)
 - CI (ALICE-Law G9): `scripts/id_move_check.py` (ALICE の識別子を持つ crate で共有、ALICE-Zip と同じ file) を追加 最新の release tag の公開版と作業 tree で `CRYPTO_SEMANTICS_ID` の値を読み、動いたのに破壊的な版になっていない / CHANGELOG が両方の値を書いていない時に fail する (ci.yml の clippy job と preflight) `Cargo.toml` の getrandom の説明から、外した det-math 依存の頃の古い記述を除いた
 - `alice_crypto::semantics` (ALICE-Law G6): `CRYPTO_SEMANTICS_ID` (`65285bfd…26acef`)、`tests/semantics_golden.rs` が固定の鍵で bit を記録する 5 場面 (keystream / 開区間の一様乱数 / 整数の機構 / 実数の機構 / 真偽値の機構) を alice-det-math と同じ手順で畳んだ値 版と toolchain (rust-toolchain.toml と実行中の rustc) を試験で照合し、記録した golden がすべて畳まれていることも確かめる
 - `tests/float_edge_golden.rs` (ALICE-Law G4): +0 と -0 の dp_sum が同じ bit になること、格子上の値の privatize が厳密に打ち消すこと、effective_epsilon の bit を固定する
