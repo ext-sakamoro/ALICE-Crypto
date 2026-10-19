@@ -21,6 +21,7 @@ All notable changes to ALICE-Crypto are documented here.
 - CI: 公開する文面の検査 (`Public text` workflow、`scripts/public_text.sh`) を追加 ALICE-Law の `scripts/public_text_check.py` を `.github/public-text-pin` の revision (779fa44) で取得し、SHA-256 が一致した時だけ使って、HEAD の全 tracked file (path と本文) と送った commit (message・追加行・追加 path) を読む 何も比較できなければ失敗する preflight でも走る
 
 ### Changed
+- `alice-law-conformance.toml`: evidence / mutant / note の行番号参照 58 件を anchor (`path#token`、ALICE-Law の roster が ref の file で 1 か所に解決するか確かめる) にした 行番号がずれて別の行を指していた参照 (clippy.toml・ci.yml・scripts/preflight.sh の範囲と列挙、OS entropy の呼び出し等) は文章が名指す構文 (step 名、fn、表の entry) に直し、測定の記録に出る行番号はその行を名指す文に置き換えた 各 gate の status は変わらない
 - CI: `.github/workflows/eol.yml` に top-level の concurrency group を足し (同じ branch の古い run は止め、main の run は commit ごとに残す)、action を commit SHA で固定して checkout に `persist-credentials: false` を付け、`workflow_dispatch` で手動でも走らせられるようにした (ALICE の crate で同じ中身の file、workflow_concurrency.py と workflow_pin_check.py を持つ crate の検査に合わせた)
 
 - CI: `.gitattributes` に `* text=auto eol=lf` を置き、text の file を保存も checkout も全 OS で LF にした (共有 file は ALICE-Law の表と byte で比べるので、Windows の CRLF の checkout ではずれになる) binary と既存の行はそのまま、`git add --renormalize` で commit 済みの中身は変わらない
