@@ -62,7 +62,7 @@ reference_repo = "ALICE-LOL"
 status = "pass"
 evidence = [
     "tests/float_edge_golden.rs: dp_sum of +0 and of -0 with the same key gives the same bits (both round to lattice index 0) and the recorded ones; privatize of a lattice point cancels exactly (y - x is a whole number of 2^-20 steps); effective_epsilon of five (sensitivity, epsilon) pairs is the recorded bits",
-    "tests/semantics_golden.rs (five recorded-bit scenarios, G6) and tests/dp_noise_golden.rs",
+    "tests/semantics_golden.rs (five recorded-bit scenarios, G6, and checker_rejects_a_wrong_digest: a moved digest does not match) and tests/dp_noise_golden.rs",
     ".github/workflows/ci.yml: debug in the test job `.github/workflows/ci.yml#jobs:>test:` (Law tests step `.github/workflows/ci.yml#- name: Law tests (semantics goldens and identifier, edge-case goldens)`) and release in the release job `.github/workflows/ci.yml#jobs:>release:` (`.github/workflows/ci.yml#- name: Law tests (release)`), each on ubuntu-latest (x86_64) and macos-latest (aarch64) — debug / release x x86_64 / aarch64; scripts/run_tests.sh float_edge_golden=3 fails a leg that ran fewer tests",
 ]
 mutant = "measured 2026-10-17, reverted: effective_epsilon reassociated as epsilon * (lattice * steps / sensitivity) — the same formula with another rounding order — fails effective_epsilon_is_the_recorded_bits in the release profile"
@@ -86,7 +86,7 @@ status = "pass"
 evidence = [
     "`src/semantics.rs#pub const CRYPTO_SEMANTICS_ID` (CRYPTO_SEMANTICS_ID 65285bfd...26acef: the fold of CRYPTO_SEMANTICS_PINS at `src/semantics.rs#pub const CRYPTO_SEMANTICS_PINS`, the five recorded-bit scenarios of tests/semantics_golden.rs — keystream, open interval draws, integer mechanisms (dp_count, dp_int), real-valued mechanisms (dp_sum, DpNoise::privatize), boolean mechanisms (randomized_response, bernoulli_ratio); fold of alice-det-math) and `src/semantics.rs#pub const CRYPTO_SEMANTICS_CHECKED_AT` (CRYPTO_SEMANTICS_CHECKED_AT = 0.4.1, 1.98.1)",
     "tests/crypto_semantics_id.rs (6 tests: the entries are exactly the recorded goldens — every golden folded and only goldens —, the fold, the recorded value, one changed bit moves it, no cfg, version and toolchain: Cargo.toml, rust-toolchain.toml and the running rustc -V)",
-    ".github/workflows/ci.yml Law tests steps (debug and release, x86_64 and aarch64): scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6",
+    ".github/workflows/ci.yml Law tests steps (debug and release, x86_64 and aarch64): scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6",
 ]
 mutant = "measured 2026-10-17, each reverted: an entry changed without its golden fails the_entries_are_exactly_the_recorded_goldens and the_identifier_is_the_fold_of_the_table; a golden re-recorded without its entry fails the first and boolean_mechanisms_are_the_recorded_bits; a golden added without an entry fails the_entries_are_exactly_the_recorded_goldens; CRYPTO_SEMANTICS_CHECKED_AT at 0.4.2 fails the_pins_were_checked_on_this_version_and_toolchain"
 since = ""
@@ -167,6 +167,7 @@ status = "pass"
 evidence = [
     "clippy.toml `clippy.toml#path = \"std::collections::HashMap\"` and `clippy.toml#path = \"std::collections::HashSet\"`: disallowed-types std::collections::HashMap and HashSet (with RandomState already banned for G10), so no hash iteration order can reach an output; the canary plants each",
     "src/ has no HashMap, HashSet, rayon, std::thread or par_iter (grep), so no output depends on iteration order, thread count or a parallel reduction order",
+    "scripts/clippy_canary.py (shared with the other ALICE crates, tests scripts/test_clippy_canary.py, rows scripts/clippy_canary_calls.tsv generated from clippy.toml): plants each disallowed entry, the HashMap and HashSet rows among them, and fails when clippy does not flag one",
 ]
 mutant = "the canary (scripts/clippy_canary.py) plants a HashMap and a HashSet and fails unless clippy flags each; measured 2026-10-17: 68 planted, 68 entries, every one flagged"
 since = ""

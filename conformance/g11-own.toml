@@ -1,0 +1,27 @@
+# ALICE-Law G11: this repository's own rows of conformance/g11.toml (the rows of the checkers the ALICE
+# crates share are generated from ALICE-Law). scripts/g11_table.sh --write writes the table from both.
+#
+# The golden and identifier suites are run by scripts/run_tests.sh, which fails a step when a named test
+# binary ran fewer tests than named; its zero test is therefore the compared-nothing test of each leg,
+# and each canary is a test of a binary the leg names.
+
+[[row]]
+gate = "G4"
+checker = ".github/workflows/ci.yml#- name: Law tests (semantics goldens and identifier, edge-case goldens)>scripts/run_tests.sh"
+canary = "tests/semantics_golden.rs::checker_rejects_a_wrong_digest"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G5"
+checker = ".github/workflows/ci.yml#- name: Law tests (release)>scripts/run_tests.sh"
+canary = "tests/semantics_golden.rs::checker_rejects_a_wrong_digest"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]
+
+[[row]]
+gate = "G6"
+checker = ".github/workflows/ci.yml#- name: Law tests (semantics goldens and identifier, edge-case goldens)>scripts/run_tests.sh"
+canary = "tests/crypto_semantics_id.rs::one_changed_bit_in_any_entry_changes_the_identifier"
+zero = "scripts/test_run_tests.py::RunTests.test_a_named_file_that_ran_zero_fails"
+shared = ["scripts/run_tests.sh", "scripts/test_run_tests.py"]

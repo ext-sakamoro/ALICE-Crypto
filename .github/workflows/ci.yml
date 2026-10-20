@@ -44,7 +44,7 @@ jobs:
       - name: Test (full native feature set)
         run: cargo test --features "$NATIVE_FEATURES"
       - name: Law tests (semantics goldens and identifier, edge-case goldens)
-        run: scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+        run: scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
   release:
     # ALICE-Law G4 / G5: the test suite under the release profile on x86_64 (ubuntu) and
@@ -67,7 +67,7 @@ jobs:
       - name: Test (full native feature set, release)
         run: cargo test --release --features "$NATIVE_FEATURES"
       - name: Law tests (release)
-        run: scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+        run: scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
   float-environment:
     # ALICE-Law G14 on each OS: round-to-nearest-even and no flush-to-zero at run
@@ -106,6 +106,15 @@ jobs:
           "$PY" scripts/test_build_config_guard.py
           "$PY" scripts/build_config_guard.py
           "$PY" scripts/test_build_flags_check.py
+      # ALICE-Law G11 (c): the files shared with the other crates are the bytes ALICE-Law's
+      # table records (table and checker fetched at .github/shared-files-pin, both SHA-256
+      # pinned); a difference, an unlisted shared path or nothing compared fails
+      - name: Shared files equal ALICE-Law's table
+        shell: bash
+        run: |
+          PY=$(command -v python3 || command -v python)
+          "$PY" scripts/test_shared_files.py
+          scripts/shared_files.sh
       - name: Effective rustc flags (default, full native feature set, no default features)
         if: runner.os != 'Windows'
         run: |
