@@ -97,6 +97,10 @@ python3 scripts/test_build_config_guard.py
 python3 scripts/build_config_guard.py
 python3 scripts/test_build_flags_check.py
 
+step "ci.yml / float-environment: Shared files equal ALICE-Law's table"
+python3 scripts/test_shared_files.py
+scripts/shared_files.sh
+
 step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 2)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std )
 
@@ -274,12 +278,12 @@ step "ci.yml / test: Test (full native feature set)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo test --features "$NATIVE_FEATURES" )
 
 step "ci.yml / test: Law tests (semantics goldens and identifier, edge-case goldens)"
-scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
 step "ci.yml / release: release profile tests"
 cargo test --release
 ( export NATIVE_FEATURES="std,ffi"; cargo test --release --features "$NATIVE_FEATURES" )
-scripts/run_tests.sh semantics_golden=5,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --release --test semantics_golden --test crypto_semantics_id --test float_edge_golden
 
 step "security-audit.yml / audit: Run cargo audit"
 (

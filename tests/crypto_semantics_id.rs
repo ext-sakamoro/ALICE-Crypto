@@ -338,7 +338,7 @@ fn one_changed_bit_in_any_entry_changes_the_identifier() {
         entries[i].1[0] ^= 1;
         assert_ne!(
             fold(&entries),
-            CRYPTO_SEMANTICS_ID,
+            fold(CRYPTO_SEMANTICS_PINS),
             "entry {} does not move the identifier",
             entries[i].0
         );
