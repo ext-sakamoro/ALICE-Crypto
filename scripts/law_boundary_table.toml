@@ -220,6 +220,12 @@ reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differenti
 
 [[function]]
 file = "src/stream.rs"
+name = "from_slice"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
 name = "as_bytes"
 class = "ciphertext and keys"
 reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
