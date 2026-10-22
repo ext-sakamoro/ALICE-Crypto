@@ -308,6 +308,61 @@ pub fn open(key: &Key, sealed: &[u8]) -> Result<Vec<u8>, CipherError> {
     Ok(buffer)
 }
 
+/// Convenience: [`seal`] with associated data
+///
+/// The associated data is authenticated but not encrypted and not stored in
+/// the output: the opener must supply the same bytes. Use it to bind a sealed
+/// value to its context (for example a record's table, column and key), so
+/// that a sealed value copied into another record does not open there.
+///
+/// Output format: `[nonce 24B][ciphertext][tag 16B]` (the same as [`seal`];
+/// with empty associated data the output opens with [`open`]).
+///
+/// # Errors
+///
+/// Returns [`CipherError`] if nonce generation or encryption fails.
+#[inline(always)]
+pub fn seal_with_aad(key: &Key, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, CipherError> {
+    let nonce = Nonce::generate()?;
+    let total_len = Nonce::SIZE + plaintext.len() + TAG_SIZE;
+
+    let mut out = Vec::with_capacity(total_len);
+    out.extend_from_slice(&nonce.0);
+    out.extend_from_slice(plaintext);
+    out.resize(total_len, 0);
+
+    encrypt_in_place_aead(key, &nonce, &mut out[Nonce::SIZE..], plaintext.len(), aad)?;
+
+    Ok(out)
+}
+
+/// Convenience: [`open`] with associated data
+///
+/// Input format: `[nonce 24B][ciphertext][tag 16B]`
+///
+/// # Errors
+///
+/// Returns [`CipherError::BufferTooSmall`] if the input is shorter than a nonce
+/// and a tag, and [`CipherError::DecryptionFailed`] if the key, the associated
+/// data or any byte of the input differs from the sealing side.
+#[inline(always)]
+pub fn open_with_aad(key: &Key, aad: &[u8], sealed: &[u8]) -> Result<Vec<u8>, CipherError> {
+    if sealed.len() < Nonce::SIZE + TAG_SIZE {
+        return Err(CipherError::BufferTooSmall);
+    }
+
+    let mut nonce_bytes = [0u8; Nonce::SIZE];
+    nonce_bytes.copy_from_slice(&sealed[..Nonce::SIZE]);
+    let nonce = Nonce(nonce_bytes);
+
+    let mut buffer = sealed[Nonce::SIZE..].to_vec();
+
+    let pt_len = decrypt_in_place_aead(key, &nonce, &mut buffer, aad)?;
+    buffer.truncate(pt_len);
+
+    Ok(buffer)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

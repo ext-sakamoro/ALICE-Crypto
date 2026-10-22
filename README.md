@@ -126,6 +126,39 @@ let opened = open(&key, &sealed)?;
 assert_eq!(&opened, plaintext);
 ```
 
+### Encryption bound to a context (associated data)
+
+```rust
+use alice_crypto::{Key, seal_with_aad, open_with_aad};
+
+let key = Key::generate()?;
+// the associated data is authenticated, not stored: the opener supplies it
+let sealed = seal_with_aad(&key, b"accounts/token/42", b"secret")?;
+assert_eq!(open_with_aad(&key, b"accounts/token/42", &sealed)?, b"secret");
+// copied into another record, it does not open
+assert!(open_with_aad(&key, b"accounts/token/43", &sealed).is_err());
+```
+
+### Sealed envelope (version + key id, for stored values and key rotation)
+
+Layout `[version 1B][key id 4B big-endian][nonce 24B][ciphertext][tag 16B]`; the
+header is authenticated together with the associated data.
+
+```rust
+use alice_crypto::envelope::{envelope_key_id, open_envelope, reseal_envelope, seal_envelope};
+use alice_crypto::Key;
+
+let k1 = Key::generate()?;
+let blob = seal_envelope(&k1, 1, b"record-7", b"secret")?;
+assert_eq!(envelope_key_id(&blob)?, 1); // unauthenticated: picks the key to try
+assert_eq!(open_envelope(&k1, 1, b"record-7", &blob)?, b"secret");
+
+// rotate to a new key
+let k2 = Key::generate()?;
+let blob = reseal_envelope(&k1, 1, &k2, 2, b"record-7", &blob)?;
+assert_eq!(open_envelope(&k2, 2, b"record-7", &blob)?, b"secret");
+```
+
 ### Zero-Allocation In-Place Encryption
 
 ```rust

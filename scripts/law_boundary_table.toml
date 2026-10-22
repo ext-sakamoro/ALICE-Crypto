@@ -21,6 +21,30 @@ class = "dp key (input only)"
 reason = "the 32-byte key of the noise stream, taken as input; the mechanism returns a number, never bytes"
 
 [[function]]
+file = "src/envelope.rs"
+name = "seal_envelope"
+class = "ciphertext and keys"
+reason = "a sealed envelope (version and key id header, nonce, ciphertext, tag), its associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/envelope.rs"
+name = "envelope_key_id"
+class = "ciphertext and keys"
+reason = "a sealed envelope (version and key id header, nonce, ciphertext, tag), its associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/envelope.rs"
+name = "open_envelope"
+class = "ciphertext and keys"
+reason = "a sealed envelope (version and key id header, nonce, ciphertext, tag), its associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/envelope.rs"
+name = "reseal_envelope"
+class = "ciphertext and keys"
+reason = "a sealed envelope (version and key id header, nonce, ciphertext, tag), its associated data and keys: no differential-privacy value"
+
+[[function]]
 file = "src/gf256.rs"
 name = "new"
 class = "field element"
@@ -209,5 +233,17 @@ reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differenti
 [[function]]
 file = "src/stream.rs"
 name = "open"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "seal_with_aad"
+class = "ciphertext and keys"
+reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/stream.rs"
+name = "open_with_aad"
 class = "ciphertext and keys"
 reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"

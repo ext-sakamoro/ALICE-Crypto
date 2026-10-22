@@ -5,6 +5,9 @@ All notable changes to ALICE-Crypto are documented here.
 ## [Unreleased]
 
 ### Added
+- `stream::seal_with_aad` / `stream::open_with_aad`: `seal` / `open` に associated data を足した版 (出力の形式は `seal` と同じ `[nonce 24][暗号文][tag 16]`、associated data は認証するが出力に含めない) 今までは associated data を in-place の `encrypt_in_place_aead` でしか渡せず、呼び出し側が nonce を扱う必要があった 試験 `tests/stream_aad_oracle.rs` (draft-irtf-cfrg-xchacha-03 A.3.1 の既知解、`chacha20poly1305` を直接呼んだ結果との一致、全 bit の改ざん、associated data の違い、短い入力) 既存の `seal` / `open` は変えていない
+- `envelope` module: 版と鍵 id を前に付けた封 `[version 1][key id u32 big-endian 4][nonce 24][暗号文][tag 16]` (`seal_envelope` / `open_envelope` / `envelope_key_id` / `reseal_envelope`、`EnvelopeError`) header は呼び出し側の associated data と一緒に認証するので、鍵 id を書き換えた封は開かない 保存した値の鍵の回転と形式の更新のため 試験 `tests/envelope_oracle.rs` (header と本体の参照実装との一致、header・本体の全 bit の改ざん、鍵 id の不一致、未知の版、短い入力、回転)
+- `scripts/law_boundary_table.toml`: 上の 6 関数を「暗号文と鍵」に分類 (bytes を扱う公開関数 47、表の行 41)
 - `conformance/g11-own.toml`: ALICE-Law G11 の表のうち、この crate 固有の行 (G4 / G5 の golden、G6 の識別子、比較 0 件は `scripts/run_tests.sh` の試験) 共有の検査器の行は ALICE-Law の `conformance/g11-shared-rows.toml` から生成する G13 は `scripts/clippy_canary.py` (HashMap / HashSet の行を植えて clippy が指摘することを確かめる) を適合宣言の証跡に名指したので、その共有の行も生成される
 - `tests/semantics_golden.rs`: `checker_rejects_a_wrong_digest` を追加 動いた bit の digest が記録と一致しないことを確かめる (比較を常に一致にする変異でこの試験だけが失敗する) CI と preflight の `scripts/run_tests.sh` の最小数を `semantics_golden=6` にした
 - CI (ALICE-Law G11 (c)): ほかの ALICE の crate と同じ bytes で持つ file を ALICE-Law の表と比べる `scripts/shared_files.sh` (試験 `scripts/test_shared_files.py`、ALICE-DetMath などと同じ中身) と `.github/shared-files-pin` を足し、float-environment job (3 OS) と preflight で走らせる 表と検査器は pin の版で取得し SHA-256 を確かめる 差、表に無い共有の path、比較 0 件は失敗
