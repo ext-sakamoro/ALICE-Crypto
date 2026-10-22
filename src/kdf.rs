@@ -139,6 +139,9 @@ pub fn password_stretch(password: &[u8], salt: &[u8], iterations: u32) -> [u8; 3
 }
 
 /// Argon2id の費用 parameter (RFC 9106)
+///
+/// wasm32 では [`Argon2Params::RFC9106_LOW_MEMORY`] (64 MiB) は memory を確保できずに
+/// [`KdfError::Failed`] になりうる、[`Argon2Params::RFC9106_RECOMMENDED`] (2 GiB) は動かない
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Argon2Params {
     /// memory (KiB)、lane ごとに 8 KiB 以上
@@ -201,7 +204,10 @@ pub enum KdfError {
     InvalidParams,
     /// 出力が 4 byte 未満か、上限を超える
     InvalidOutputLength,
-    /// 上記以外の失敗 (secret / associated data が長すぎる、memory を確保できない)
+    /// 入力が RFC 9106 の範囲外 (associated data が 32 byte を超える、password / salt / secret が
+    /// 2^32 - 1 byte を超える) 呼び出し側の誤り
+    InvalidInput,
+    /// 上記以外の失敗 (memory を確保できない等、入力からは予期できないもの)
     Failed,
 }
 
@@ -241,7 +247,7 @@ pub fn argon2id_with(
     if salt.len() < ARGON2_MIN_SALT {
         return Err(KdfError::SaltTooShort);
     }
-    let data = argon2::AssociatedData::new(associated_data).map_err(|_| KdfError::Failed)?;
+    let data = argon2::AssociatedData::new(associated_data).map_err(map_argon2_error)?;
     let p = argon2::ParamsBuilder::new()
         .m_cost(params.m_cost_kib)
         .t_cost(params.t_cost)
@@ -256,7 +262,7 @@ pub fn argon2id_with(
         argon2::Version::V0x13,
         p,
     )
-    .map_err(|_| KdfError::Failed)?;
+    .map_err(map_argon2_error)?;
     a.hash_password_into(password, salt, out)
         .map_err(map_argon2_error)
 }
@@ -273,6 +279,11 @@ fn map_argon2_error(e: argon2::Error) -> KdfError {
         | argon2::Error::TimeTooSmall
         | argon2::Error::ThreadsTooFew
         | argon2::Error::ThreadsTooMany => KdfError::InvalidParams,
+        argon2::Error::AdTooLong
+        | argon2::Error::PwdTooLong
+        | argon2::Error::SaltTooLong
+        | argon2::Error::SecretTooLong
+        | argon2::Error::KeyIdTooLong => KdfError::InvalidInput,
         _ => KdfError::Failed,
     }
 }
