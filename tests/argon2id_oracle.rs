@@ -177,3 +177,18 @@ fn the_recommended_preset_runs() {
     .unwrap();
     assert!(out.iter().any(|&b| b != 0));
 }
+
+/// Inputs outside the ranges RFC 9106 allows are the caller's error, reported
+/// as `InvalidInput`, not as an internal failure. The associated data limit
+/// (32 bytes in the wrapped implementation) is the one that can be exercised
+/// without allocating gigabytes; the password, salt and secret limits are
+/// 2^32 - 1 bytes and map to the same variant.
+#[test]
+fn an_over_long_associated_data_is_invalid_input() {
+    let mut out = [0u8; 32];
+    assert!(argon2id_with(b"pw", &[7; 16], b"", &[4; 32], &rfc_params(), &mut out).is_ok());
+    assert_eq!(
+        argon2id_with(b"pw", &[7; 16], b"", &[4; 33], &rfc_params(), &mut out),
+        Err(KdfError::InvalidInput)
+    );
+}
