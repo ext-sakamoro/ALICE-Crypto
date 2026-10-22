@@ -5,6 +5,8 @@ All notable changes to ALICE-Crypto are documented here.
 ## [Unreleased]
 
 ### Added
+- `kdf::argon2id` / `kdf::argon2id_with` / `Argon2Params` / `KdfError` / `ARGON2_MIN_SALT`: password から鍵を作る memory-hard な KDF (Argon2id、RFC 9106) `Argon2Params` は RFC 9106 の推奨 2 つを定数で持ち (`RFC9106_LOW_MEMORY` = 64 MiB / t=3 / p=4、`RFC9106_RECOMMENDED` = 2 GiB / t=1 / p=4)、保存用の 12 byte の encode を持つ salt は 16 byte 以上を要求する 実装は RustCrypto の `argon2` 0.5.3 (MIT OR Apache-2.0) を包む ALICE に Argon2 の実装は無く、memory-hard な KDF を自前で書く方が検証の済んだ実装から外れる度合いが大きいため 依存は `=0.5.3` に固定 (`argon2` 0.5.3 の rust-version は 1.65) 試験 `tests/argon2id_oracle.rs` (RFC 9106 5.3 の Argon2id ベクトル、各入力と parameter が出力を変える、退化入力の Err、encode の往復) 2 GiB の preset は定数の確認だけで CI では実行しない (実行する試験は ignore)
+- `scripts/law_boundary_table.toml`: `argon2id` / `argon2id_with` を「鍵の材料」、`Argon2Params::to_bytes` / `from_bytes` を「鍵導出の parameter」に分類 (bytes を扱う公開関数 51、表の行 45)
 - `stream::seal_with_aad` / `stream::open_with_aad`: `seal` / `open` に associated data を足した版 (出力の形式は `seal` と同じ `[nonce 24][暗号文][tag 16]`、associated data は認証するが出力に含めない) 今までは associated data を in-place の `encrypt_in_place_aead` でしか渡せず、呼び出し側が nonce を扱う必要があった 試験 `tests/stream_aad_oracle.rs` (draft-irtf-cfrg-xchacha-03 A.3.1 の既知解、`chacha20poly1305` を直接呼んだ結果との一致、全 bit の改ざん、associated data の違い、短い入力) 既存の `seal` / `open` は変えていない
 - `envelope` module: 版と鍵 id を前に付けた封 `[version 1][key id u32 big-endian 4][nonce 24][暗号文][tag 16]` (`seal_envelope` / `open_envelope` / `envelope_key_id` / `reseal_envelope`、`EnvelopeError`) header は呼び出し側の associated data と一緒に認証するので、鍵 id を書き換えた封は開かない 保存した値の鍵の回転と形式の更新のため 試験 `tests/envelope_oracle.rs` (header と本体の参照実装との一致、header・本体の全 bit の改ざん、鍵 id の不一致、未知の版、短い入力、回転)
 - `scripts/law_boundary_table.toml`: 上の 6 関数を「暗号文と鍵」に分類 (bytes を扱う公開関数 47、表の行 41)
@@ -27,6 +29,7 @@ All notable changes to ALICE-Crypto are documented here.
 - CI: 公開する文面の検査 (`Public text` workflow、`scripts/public_text.sh`) を追加 ALICE-Law の `scripts/public_text_check.py` を `.github/public-text-pin` の revision (779fa44) で取得し、SHA-256 が一致した時だけ使って、HEAD の全 tracked file (path と本文) と送った commit (message・追加行・追加 path) を読む 何も比較できなければ失敗する preflight でも走る
 
 ### Changed
+- `kdf::password_stretch`: memory-hard でないこと、password からの鍵導出には `argon2id` を使うことを doc に書いた (名前と挙動は変えていない)
 - CI: 試験 `scripts/test_public_text.py` を ALICE-SDF と同じ版にした (公開する text の検査を pin の checker で走らせ、置いた note link を tree と commit message で検出すること、pin の 3 行目 `config-sha256` が設定を承認することを確かめる、network を使う) `scripts/public_text.sh` と public-text の pin は変えないので検査の結果は変わらない `.github/shared-files-pin` を ALICE-Law の新しい版に移す
 - CI: `scripts/run_tests.sh` と試験 `scripts/test_run_tests.py` を ALICE-LLM と同じ bytes にし、`.github/shared-files-pin` を ALICE-Law の新しい版に移す 名前 `lib` を library の単体試験として数えるようになったが、この repository は `lib` を名指さないので各段の試験の名前と件数は変わらない 試験 `scripts/test_public_text.py` は ALICE-SDF と同じ版にした (置いた note link を tree と commit message で検出することを pin の checker で確かめる、network を使う) `scripts/public_text.sh` と pin は変えないので検査の結果は変わらない
 - `alice-law-conformance.toml`: evidence / mutant / note の行番号参照 58 件を anchor (`path#token`、ALICE-Law の roster が ref の file で 1 か所に解決するか確かめる) にした 行番号がずれて別の行を指していた参照 (clippy.toml・ci.yml・scripts/preflight.sh の範囲と列挙、OS entropy の呼び出し等) は文章が名指す構文 (step 名、fn、表の entry) に直し、測定の記録に出る行番号はその行を名指す文に置き換えた 各 gate の status は変わらない

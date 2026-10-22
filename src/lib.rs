@@ -134,7 +134,10 @@ pub use envelope::{
 };
 pub use gf256::{batch_inv, batch_inv_stack, GF};
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
-pub use kdf::{password_stretch, HkdfBlake3, Prk};
+pub use kdf::{
+    argon2id, argon2id_with, password_stretch, Argon2Params, HkdfBlake3, KdfError, Prk,
+    ARGON2_MIN_SALT,
+};
 pub use keystore::{KeyEntry, KeyId, KeyStore, KeyStoreError};
 pub use semantics::CRYPTO_SEMANTICS_ID;
 pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};

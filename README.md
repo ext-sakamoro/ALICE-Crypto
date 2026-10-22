@@ -159,6 +159,18 @@ let blob = reseal_envelope(&k1, 1, &k2, 2, b"record-7", &blob)?;
 assert_eq!(open_envelope(&k2, 2, b"record-7", &blob)?, b"secret");
 ```
 
+### Password-based key derivation (Argon2id, RFC 9106)
+
+```rust
+use alice_crypto::kdf::{argon2id, Argon2Params};
+
+let salt = [7u8; 16]; // random per password, stored with the params
+let params = Argon2Params::RFC9106_LOW_MEMORY; // 64 MiB, t = 3, p = 4
+let mut key = [0u8; 32];
+argon2id(b"correct horse battery staple", &salt, &params, &mut key)?;
+let stored = params.to_bytes(); // 12 bytes, keep next to the salt
+```
+
 ### Zero-Allocation In-Place Encryption
 
 ```rust

@@ -123,6 +123,30 @@ class = "key material"
 reason = "derived key material and its inputs: no differential-privacy value"
 
 [[function]]
+file = "src/kdf.rs"
+name = "argon2id"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "argon2id_with"
+class = "key material"
+reason = "derived key material and its inputs: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "to_bytes"
+class = "key-derivation parameters"
+reason = "the encoded cost parameters of the password key derivation: no differential-privacy value"
+
+[[function]]
+file = "src/kdf.rs"
+name = "from_bytes"
+class = "key-derivation parameters"
+reason = "the encoded cost parameters of the password key derivation: no differential-privacy value"
+
+[[function]]
 file = "src/keystore.rs"
 name = "key_data"
 class = "key material"

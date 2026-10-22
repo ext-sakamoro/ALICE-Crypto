@@ -160,3 +160,20 @@ fn params_round_trip_through_their_fixed_encoding() {
         Err(KdfError::InvalidParams)
     );
 }
+
+/// The 2 GiB preset is asserted by its constants above and never executed in
+/// CI: this test is ignored so that the default `cargo test` does not allocate
+/// 2 GiB (run it by hand with `--ignored` on a machine that has the memory).
+#[test]
+#[ignore = "allocates 2 GiB (RFC9106_RECOMMENDED); run manually with --ignored"]
+fn the_recommended_preset_runs() {
+    let mut out = [0u8; 32];
+    argon2id(
+        b"pw",
+        &[7; 16],
+        &Argon2Params::RFC9106_RECOMMENDED,
+        &mut out,
+    )
+    .unwrap();
+    assert!(out.iter().any(|&b| b != 0));
+}

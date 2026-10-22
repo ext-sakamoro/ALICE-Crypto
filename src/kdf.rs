@@ -2,6 +2,10 @@
 //!
 //! BLAKE3 を基盤とした HKDF 風の鍵導出。
 //! Extract → Expand の2段階で、任意の入力から暗号学的に安全な鍵を生成。
+//!
+//! password からの鍵導出は [`argon2id`] (RFC 9106、memory-hard) を使う 実装は RustCrypto の
+//! `argon2` crate を薄く包む ALICE に Argon2 の実装は無く、memory-hard な KDF を自前で書く方が
+//! 検証の済んだ実装から外れる度合いが大きいため
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -108,9 +112,9 @@ impl HkdfBlake3 {
 
 /// パスワードストレッチング (反復 BLAKE3)。
 ///
-/// Argon2 の代替として、BLAKE3 の反復ハッシュで計算コストを増大。
-/// メモリハードではないため、GPU 攻撃には弱い。
-/// 高セキュリティが必要な場合は Argon2 を別途使用すべき。
+/// BLAKE3 の反復ハッシュで計算コストを増大させる
+/// メモリハードではないため、GPU 攻撃には弱い
+/// password から鍵を作る時は [`argon2id`] を使う (この関数は名前と挙動を変えずに残す)
 ///
 /// # Arguments
 ///
@@ -132,6 +136,145 @@ pub fn password_stretch(password: &[u8], salt: &[u8], iterations: u32) -> [u8; 3
     }
 
     *current.as_bytes()
+}
+
+/// Argon2id の費用 parameter (RFC 9106)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Argon2Params {
+    /// memory (KiB)、lane ごとに 8 KiB 以上
+    pub m_cost_kib: u32,
+    /// 反復回数 (1 以上)
+    pub t_cost: u32,
+    /// 並列度 (lane 数、1 以上)
+    pub p_lanes: u32,
+}
+
+impl Argon2Params {
+    /// RFC 9106 4. の 2 つ目の推奨 (memory が限られる環境): 64 MiB、t = 3、p = 4
+    pub const RFC9106_LOW_MEMORY: Self = Self {
+        m_cost_kib: 64 * 1024,
+        t_cost: 3,
+        p_lanes: 4,
+    };
+
+    /// RFC 9106 4. の 1 つ目の推奨: 2 GiB、t = 1、p = 4 (端末には大きい)
+    pub const RFC9106_RECOMMENDED: Self = Self {
+        m_cost_kib: 2 * 1024 * 1024,
+        t_cost: 1,
+        p_lanes: 4,
+    };
+
+    /// 保存用の固定長 encode: `[m u32 BE][t u32 BE][p u32 BE]` (12 byte)
+    #[must_use]
+    pub fn to_bytes(&self) -> [u8; 12] {
+        let mut b = [0u8; 12];
+        b[..4].copy_from_slice(&self.m_cost_kib.to_be_bytes());
+        b[4..8].copy_from_slice(&self.t_cost.to_be_bytes());
+        b[8..].copy_from_slice(&self.p_lanes.to_be_bytes());
+        b
+    }
+
+    /// [`Argon2Params::to_bytes`] の逆
+    ///
+    /// # Errors
+    ///
+    /// 長さが 12 byte でなければ [`KdfError::InvalidParams`]
+    pub fn from_bytes(b: &[u8]) -> Result<Self, KdfError> {
+        if b.len() != 12 {
+            return Err(KdfError::InvalidParams);
+        }
+        let word = |i: usize| u32::from_be_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+        Ok(Self {
+            m_cost_kib: word(0),
+            t_cost: word(4),
+            p_lanes: word(8),
+        })
+    }
+}
+
+/// password からの鍵導出の error
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KdfError {
+    /// salt が [`ARGON2_MIN_SALT`] byte 未満
+    SaltTooShort,
+    /// 費用 parameter が範囲外 (t = 0、p = 0、m < 8p など)
+    InvalidParams,
+    /// 出力が 4 byte 未満か、上限を超える
+    InvalidOutputLength,
+    /// 上記以外の失敗 (secret / associated data が長すぎる、memory を確保できない)
+    Failed,
+}
+
+/// [`argon2id`] が要求する salt の最小長 (RFC 9106 が推奨する 16 byte)
+pub const ARGON2_MIN_SALT: usize = 16;
+
+/// password から鍵を作る (Argon2id、RFC 9106、memory-hard)
+///
+/// `out` の長さの鍵を書く 同じ入力からは同じ鍵 (決定的) salt は password ごとに
+/// 乱数で作り、`params` と一緒に保存する ([`Argon2Params::to_bytes`])
+///
+/// # Errors
+///
+/// [`KdfError`] (salt が短い、parameter が範囲外、出力長が範囲外)
+pub fn argon2id(
+    password: &[u8],
+    salt: &[u8],
+    params: &Argon2Params,
+    out: &mut [u8],
+) -> Result<(), KdfError> {
+    argon2id_with(password, salt, &[], &[], params, out)
+}
+
+/// [`argon2id`] に secret (鍵、RFC 9106 の K) と associated data (X) を足した版
+///
+/// # Errors
+///
+/// [`argon2id`] と同じ
+pub fn argon2id_with(
+    password: &[u8],
+    salt: &[u8],
+    secret: &[u8],
+    associated_data: &[u8],
+    params: &Argon2Params,
+    out: &mut [u8],
+) -> Result<(), KdfError> {
+    if salt.len() < ARGON2_MIN_SALT {
+        return Err(KdfError::SaltTooShort);
+    }
+    let data = argon2::AssociatedData::new(associated_data).map_err(|_| KdfError::Failed)?;
+    let p = argon2::ParamsBuilder::new()
+        .m_cost(params.m_cost_kib)
+        .t_cost(params.t_cost)
+        .p_cost(params.p_lanes)
+        .data(data)
+        .output_len(out.len())
+        .build()
+        .map_err(map_argon2_error)?;
+    let a = argon2::Argon2::new_with_secret(
+        secret,
+        argon2::Algorithm::Argon2id,
+        argon2::Version::V0x13,
+        p,
+    )
+    .map_err(|_| KdfError::Failed)?;
+    a.hash_password_into(password, salt, out)
+        .map_err(map_argon2_error)
+}
+
+// 範囲の検査は argon2 crate の 1 か所で行い、その error をここで分類する
+// (同じ検査を手前に書くと 2 つの判定が食い違いうる)
+fn map_argon2_error(e: argon2::Error) -> KdfError {
+    match e {
+        argon2::Error::OutputTooShort | argon2::Error::OutputTooLong => {
+            KdfError::InvalidOutputLength
+        }
+        argon2::Error::MemoryTooLittle
+        | argon2::Error::MemoryTooMuch
+        | argon2::Error::TimeTooSmall
+        | argon2::Error::ThreadsTooFew
+        | argon2::Error::ThreadsTooMany => KdfError::InvalidParams,
+        _ => KdfError::Failed,
+    }
 }
 
 // ============================================================================

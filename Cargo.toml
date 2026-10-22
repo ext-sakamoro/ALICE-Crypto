@@ -34,6 +34,9 @@ getrandom = { version = "0.2", default-features = false }
 # 消されうるので、volatile write + fence を持つ実装に任せる
 # (chacha20poly1305 が既に引いているので依存木は増えない)
 zeroize = { version = "1", default-features = false, features = ["alloc"] }
+# memory-hard な password からの鍵導出 (`kdf::argon2id`、RFC 9106)
+# 自前の BLAKE2b と Argon2 の写しを持たず、RustCrypto の実装を薄く包む
+argon2 = { version = "=0.5.3", default-features = false, features = ["alloc", "zeroize"] }
 
 [profile.release]
 lto = "fat"
