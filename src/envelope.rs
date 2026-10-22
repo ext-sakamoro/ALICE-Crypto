@@ -65,6 +65,7 @@ pub const ENVELOPE_OVERHEAD: usize = ENVELOPE_HEADER_SIZE + Nonce::SIZE + TAG_SI
 
 /// Envelope error
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum EnvelopeError {
     /// Input shorter than the part of the layout that was needed
     TooShort,

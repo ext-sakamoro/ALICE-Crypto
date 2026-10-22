@@ -197,6 +197,7 @@ impl Argon2Params {
 
 /// password からの鍵導出の error
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KdfError {
     /// salt が [`ARGON2_MIN_SALT`] byte 未満
     SaltTooShort,
