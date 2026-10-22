@@ -15,7 +15,12 @@
 //! unambiguous.
 //!
 //! The key id is chosen by the caller (for example the generation of a data
-//! key); the envelope does not interpret it.
+//! key); the envelope does not interpret it. It is 4 bytes rather than 1 so
+//! that a key rotated on a schedule does not run out of ids (256 rotations
+//! would), and so that a [`KeyStore`] id that fits in 32 bits can be written
+//! as is.
+//!
+//! [`KeyStore`]: crate::keystore::KeyStore
 //!
 //! # Example
 //!
