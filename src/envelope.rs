@@ -18,7 +18,9 @@
 //! key); the envelope does not interpret it. It is 4 bytes rather than 1 so
 //! that a key rotated on a schedule does not run out of ids (256 rotations
 //! would), and so that a [`KeyStore`] id that fits in 32 bits can be written
-//! as is.
+//! as is. A [`KeyStore`] id is a `u64`: convert it with `u32::try_from`, not
+//! `as`, so that an id that does not fit fails instead of being truncated to
+//! another key's id.
 //!
 //! [`KeyStore`]: crate::keystore::KeyStore
 //!
