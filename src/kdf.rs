@@ -204,8 +204,8 @@ pub enum KdfError {
     InvalidParams,
     /// 出力が 4 byte 未満か、上限を超える
     InvalidOutputLength,
-    /// 入力が RFC 9106 の範囲外 (associated data が 32 byte を超える、password / salt / secret が
-    /// 2^32 - 1 byte を超える) 呼び出し側の誤り
+    /// 入力が上限を超える (associated data は包んでいる argon2 crate の上限 32 byte、
+    /// password / salt / secret は RFC 9106 の 2^32 - 1 byte) 呼び出し側の誤り
     InvalidInput,
     /// 上記以外の失敗 (memory を確保できない等、入力からは予期できないもの)
     Failed,
