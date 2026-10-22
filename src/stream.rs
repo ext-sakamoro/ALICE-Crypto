@@ -22,7 +22,10 @@ use chacha20poly1305::{
 use zeroize::Zeroize;
 
 /// Encryption/decryption error
+///
+/// Non-exhaustive: a `match` on it needs a wildcard arm, so a later variant is not a breaking change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CipherError {
     /// Encryption failed
     EncryptionFailed,
@@ -32,6 +35,8 @@ pub enum CipherError {
     RandomFailed,
     /// Buffer too small
     BufferTooSmall,
+    /// A key was built from a slice that is not [`Key::SIZE`] bytes long (the slice length)
+    InvalidKeyLength(usize),
 }
 
 /// 32-byte symmetric key
@@ -69,6 +74,25 @@ impl Key {
     #[must_use]
     pub const fn from_bytes(b: [u8; 32]) -> Self {
         Self(b)
+    }
+
+    /// Copy a key from a slice straight into the key's own storage (zeroed on drop),
+    /// so the caller needs no `[u8; 32]` temporary of its own
+    ///
+    /// Moving the returned value may still leave a copy the compiler made; this avoids
+    /// only the named intermediate array.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CipherError::InvalidKeyLength`] with the slice length when it is not
+    /// [`Self::SIZE`] bytes.
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, CipherError> {
+        if bytes.len() != Self::SIZE {
+            return Err(CipherError::InvalidKeyLength(bytes.len()));
+        }
+        let mut key = Self([0u8; 32]);
+        key.0.copy_from_slice(bytes);
+        Ok(key)
     }
 
     #[inline(always)]
