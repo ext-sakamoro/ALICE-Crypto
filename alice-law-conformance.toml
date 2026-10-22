@@ -84,7 +84,7 @@ reference_repo = "ALICE-DB"
 [G6]
 status = "pass"
 evidence = [
-    "`src/semantics.rs#pub const CRYPTO_SEMANTICS_ID` (CRYPTO_SEMANTICS_ID 65285bfd...26acef: the fold of CRYPTO_SEMANTICS_PINS at `src/semantics.rs#pub const CRYPTO_SEMANTICS_PINS`, the five recorded-bit scenarios of tests/semantics_golden.rs — keystream, open interval draws, integer mechanisms (dp_count, dp_int), real-valued mechanisms (dp_sum, DpNoise::privatize), boolean mechanisms (randomized_response, bernoulli_ratio); fold of alice-det-math) and `src/semantics.rs#pub const CRYPTO_SEMANTICS_CHECKED_AT` (CRYPTO_SEMANTICS_CHECKED_AT = 0.4.1, 1.98.1)",
+    "`src/semantics.rs#pub const CRYPTO_SEMANTICS_ID` (CRYPTO_SEMANTICS_ID 65285bfd...26acef: the fold of CRYPTO_SEMANTICS_PINS at `src/semantics.rs#pub const CRYPTO_SEMANTICS_PINS`, the five recorded-bit scenarios of tests/semantics_golden.rs — keystream, open interval draws, integer mechanisms (dp_count, dp_int), real-valued mechanisms (dp_sum, DpNoise::privatize), boolean mechanisms (randomized_response, bernoulli_ratio); fold of alice-det-math) and `src/semantics.rs#pub const CRYPTO_SEMANTICS_CHECKED_AT` (CRYPTO_SEMANTICS_CHECKED_AT = 0.5.0, 1.98.1)",
     "tests/crypto_semantics_id.rs (6 tests: the entries are exactly the recorded goldens — every golden folded and only goldens —, the fold, the recorded value, one changed bit moves it, no cfg, version and toolchain: Cargo.toml, rust-toolchain.toml and the running rustc -V)",
     ".github/workflows/ci.yml Law tests steps (debug and release, x86_64 and aarch64): scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6",
 ]

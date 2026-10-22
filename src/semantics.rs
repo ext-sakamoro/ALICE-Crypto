@@ -82,7 +82,7 @@ pub const CRYPTO_SEMANTICS_PINS: &[(&str, [u8; 32])] = &[
 ];
 
 /// The crate version and toolchain the pins were last checked against
-pub const CRYPTO_SEMANTICS_CHECKED_AT: (&str, &str) = ("0.4.1", "1.98.1");
+pub const CRYPTO_SEMANTICS_CHECKED_AT: (&str, &str) = ("0.5.0", "1.98.1");
 
 /// Content hash of this crate's outputs for a key: the fold of
 /// [`CRYPTO_SEMANTICS_PINS`] described in the [module documentation](self)
