@@ -288,6 +288,112 @@ impl core::fmt::Display for KeyStoreError {
 }
 
 // ============================================================================
+// Key provider
+// ============================================================================
+
+/// The generation of a key held by a [`KeyProvider`]: the 32-bit key id an envelope header carries. Generations
+/// start at 1; 0 is never a generation.
+pub type KeyGeneration = u32;
+
+/// A store of 32-byte keys by generation, the one shape every key store implements (in memory, an OS keychain,
+/// a key held by a foreign callback), so that sealing code asks for "the current key" and "the key of generation
+/// g" without knowing where keys live.
+///
+/// Rotation is not part of the trait: a store that can make keys rotates with its own method, keeping the
+/// earlier generations readable.
+pub trait KeyProvider: Send + Sync {
+    /// The key new data is sealed with, and its generation.
+    ///
+    /// # Errors
+    ///
+    /// [`KeyProviderError::Unavailable`] when there is no usable current key (none yet, expired, revoked, or the
+    /// store cannot be read now).
+    fn current(&self) -> Result<(KeyGeneration, crate::Key), KeyProviderError>;
+
+    /// The key of `generation`, to open data sealed with it.
+    ///
+    /// # Errors
+    ///
+    /// [`KeyProviderError::UnknownGeneration`] for a generation that never existed (and for 0),
+    /// [`KeyProviderError::Irrecoverable`] when it existed but cannot be returned any more,
+    /// [`KeyProviderError::Unavailable`] when the store cannot be read now.
+    fn by_generation(&self, generation: KeyGeneration) -> Result<crate::Key, KeyProviderError>;
+}
+
+/// Why a [`KeyProvider`] did not return a key. The reasons are fixed descriptions, never text from the store
+/// (which could carry paths or key material).
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeyProviderError {
+    /// No key of this generation ever existed (0 is never a generation).
+    UnknownGeneration(KeyGeneration),
+    /// The store cannot give the key now; asking again later may succeed (locked, no session, denied, no current
+    /// key yet).
+    Unavailable(&'static str),
+    /// The key existed and cannot be returned any more (removed, corrupt, revoked).
+    Irrecoverable(&'static str),
+}
+
+impl core::fmt::Display for KeyProviderError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownGeneration(g) => write!(f, "no key of generation {g}"),
+            Self::Unavailable(why) => write!(f, "key unavailable: {why}"),
+            Self::Irrecoverable(why) => write!(f, "key irrecoverable: {why}"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for KeyProviderError {}
+
+/// A [`KeyStore`] seen as a [`KeyProvider`] at one time (`now`, Unix seconds): the generation of a key is its
+/// [`KeyId`], which must fit 32 bits.
+///
+/// `current` is the active key while it is unexpired and unrevoked; `by_generation` returns an expired key too
+/// (data sealed before the expiry stays readable) and refuses a revoked one.
+#[derive(Clone, Copy)]
+pub struct KeyStoreProvider<'a> {
+    store: &'a KeyStore,
+    now: u64,
+}
+
+impl KeyStore {
+    /// This store as a [`KeyProvider`] at time `now` (Unix seconds).
+    #[must_use]
+    pub const fn provider_at(&self, now: u64) -> KeyStoreProvider<'_> {
+        KeyStoreProvider { store: self, now }
+    }
+}
+
+impl KeyProvider for KeyStoreProvider<'_> {
+    fn current(&self) -> Result<(KeyGeneration, crate::Key), KeyProviderError> {
+        let entry = self
+            .store
+            .get_active()
+            .ok_or(KeyProviderError::Unavailable("no active key"))?;
+        if !entry.is_valid_at(self.now) {
+            return Err(KeyProviderError::Unavailable("the active key has expired"));
+        }
+        let generation = KeyGeneration::try_from(entry.id).map_err(|_| {
+            KeyProviderError::Unavailable("the key id does not fit a 32-bit generation")
+        })?;
+        Ok((generation, crate::Key::from_bytes(entry.key_data)))
+    }
+
+    fn by_generation(&self, generation: KeyGeneration) -> Result<crate::Key, KeyProviderError> {
+        let entry = self
+            .store
+            .get(KeyId::from(generation)) // ids start at 1, so generation 0 is never found
+            .ok_or(KeyProviderError::UnknownGeneration(generation))?;
+        if entry.revoked {
+            return Err(KeyProviderError::Irrecoverable("the key was revoked"));
+        }
+        Ok(crate::Key::from_bytes(entry.key_data))
+    }
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

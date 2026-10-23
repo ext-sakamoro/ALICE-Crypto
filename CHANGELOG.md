@@ -5,6 +5,7 @@ All notable changes to ALICE-Crypto are documented here.
 ## [Unreleased]
 
 ### Added
+- `keystore::KeyProvider` / `KeyGeneration` / `KeyProviderError` / `KeyStoreProvider`: 鍵の置き場 (memory、OS の keychain、外の callback) が共通に実装する、世代で 32 byte の鍵を渡す trait `current()` は新しく封じる鍵とその世代、`by_generation(g)` は世代 g で封じたものを開く鍵 世代は envelope の header が持つ 32 bit の鍵 id で 1 から、0 は世代にならない 鍵の回転は trait に入れない (作れる置き場が自分の method で持つ) 理由は固定の文 (`&'static str`) だけで、置き場の文字列 (path や鍵の材料を含みうる) を運ばない `KeyStore::provider_at(now)` は in-memory の `KeyStore` をある時刻の provider として見せる (世代は `KeyId`、current は期限内で無効化されていない active な鍵、by_generation は期限切れでも返し無効化された鍵は拒む) 試験 `tests/key_provider_oracle.rs`
 - `chunked` module: 値を一定の大きさの塊ごとに封じる (STREAM、Hoang–Reyhanitabar–Rogaway–Vizár 2015 の `StreamBE32` を XChaCha20-Poly1305 の上で、`chacha20poly1305` の `stream` feature、依存の crate は増えない) 形式 `[0x81][鍵 id u32 BE][塊の大きさ u32 BE][nonce prefix 19 B]` に続けて塊 (最後の塊は満杯の塊より短い、塊ごとの associated data は header と呼び出し側の associated data) 塊の入れ替え・重複、切り詰め、後ろへの追加、header の書き換えは開かない 塊の大きさは 4 KiB 以上 1 MiB 以下 (読む側は buffer を確保する前に確かめる、既定 64 KiB) nonce prefix は stream ごとに OS の乱数から取り、公開の入口では受け取らない
   - std なしの核 `ChunkSealer` / `ChunkOpener` (呼び出し側の buffer を塊ごとに in-place で封じる・開く、塊の長さの規則を確かめる)
   - std の adapter: `ChunkedWriter` (`Write`、`finish` で最後の塊を書く、finish しなかった stream は開かない) / `UnverifiedChunkedReader` (`Read`、名前のとおり最後の塊を確かめる前の平文は未検証、`finish` が Ok を返して初めて全体を確かめた) / `open_to_end` (全体を確かめるまで何も返さない、長さの上限を超えたら失敗)

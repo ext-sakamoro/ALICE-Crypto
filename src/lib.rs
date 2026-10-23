@@ -139,7 +139,10 @@ pub use kdf::{
     argon2id, argon2id_with, password_stretch, Argon2Params, HkdfBlake3, KdfError, Prk,
     ARGON2_MIN_SALT,
 };
-pub use keystore::{KeyEntry, KeyId, KeyStore, KeyStoreError};
+pub use keystore::{
+    KeyEntry, KeyGeneration, KeyId, KeyProvider, KeyProviderError, KeyStore, KeyStoreError,
+    KeyStoreProvider,
+};
 pub use semantics::CRYPTO_SEMANTICS_ID;
 pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};
 pub use sss::{recover, split, Shard, SssError};
