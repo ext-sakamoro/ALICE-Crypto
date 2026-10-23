@@ -81,7 +81,7 @@ impl Shard {
     ///
     /// [`SssError::SecretTooLong`] for a share longer than `u32::MAX` bytes (the length field's range).
     pub fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>, SssError> {
-        let len = u32::try_from(self.y.len()).map_err(|_| SssError::SecretTooLong)?;
+        let len = check_share_len(self.y.len())?;
         let mut out = Zeroizing::new(Vec::with_capacity(
             SHARD_HEADER + self.y.len() + SHARD_CHECK,
         ));
@@ -198,6 +198,12 @@ extern crate alloc;
 use alloc::vec::Vec;
 
 // RNG buffer size (reduce syscalls)
+/// The length of a share as the byte form's u32 length field: [`SssError::SecretTooLong`] beyond `u32::MAX`
+/// bytes. `split` checks the secret with it before it allocates anything, and `to_bytes` writes the field with it.
+pub(crate) fn check_share_len(len: usize) -> Result<u32, SssError> {
+    u32::try_from(len).map_err(|_| SssError::SecretTooLong)
+}
+
 const RNG_BUF_SIZE: usize = 1024;
 
 /// Split a secret into N shards, requiring K to recover.
@@ -237,9 +243,7 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
     if n == 0 {
         return Err(SssError::TooManyShards);
     }
-    if u32::try_from(secret.len()).is_err() {
-        return Err(SssError::SecretTooLong);
-    }
+    check_share_len(secret.len())?;
     let mut split_id = [0u8; SPLIT_ID_LEN];
     if getrandom::getrandom(&mut split_id).is_err() {
         return Err(SssError::RandomFailed);
@@ -459,6 +463,23 @@ fn eval_poly_stack(coeffs: &[GF], x: GF) -> GF {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_check_share_len_is_the_u32_range() {
+        assert_eq!(check_share_len(0), Ok(0));
+        assert_eq!(check_share_len(1), Ok(1));
+        assert_eq!(check_share_len(u32::MAX as usize), Ok(u32::MAX));
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn test_check_share_len_refuses_past_u32_max() {
+        assert_eq!(
+            check_share_len(u32::MAX as usize + 1),
+            Err(SssError::SecretTooLong)
+        );
+        assert_eq!(check_share_len(usize::MAX), Err(SssError::SecretTooLong));
+    }
 
     #[test]
     fn test_split_recover() {
