@@ -11,7 +11,7 @@ categories = ["cryptography", "no-std"]
 
 [features]
 default = ["std"]
-std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std"]
+std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std", "sha2/std", "hmac/std", "hkdf/std", "aes-gcm/std"]
 alloc = ["blake3/traits-preview"]
 # Deprecated no-op, removed in 0.5.0: the crate never exported a C ABI, and the
 # cdylib output it belonged to was dropped in 0.4.1. Kept so `features = ["ffi"]`
@@ -40,6 +40,13 @@ zeroize = { version = "1", default-features = false, features = ["alloc"] }
 # memory-hard な password からの鍵導出 (`kdf::argon2id`、RFC 9106)
 # 自前の BLAKE2b と Argon2 の写しを持たず、RustCrypto の実装を薄く包む
 argon2 = { version = "=0.5.3", default-features = false, features = ["alloc", "zeroize"] }
+# MLS (RFC 9420) cipher suite 0x0001 の primitive: SHA-256 / HMAC / HKDF、X25519、AES-128-GCM
+# (HPKE RFC 9180 は src/hpke.rs が key schedule だけを書き、計算はこの 5 crate) 手書きの写しは持たない
+sha2 = { version = "0.10", default-features = false }
+hmac = { version = "0.12", default-features = false }
+hkdf = { version = "0.12", default-features = false }
+x25519-dalek = { version = "2", default-features = false }
+aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
 
 [profile.release]
 lto = "fat"
