@@ -385,3 +385,105 @@ file = "src/chunked/io.rs"
 name = "open_to_end"
 class = "ciphertext and keys"
 reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/aes_gcm.rs"
+name = "seal"
+class = "ciphertext and keys"
+reason = "an AES-128-GCM ciphertext with its tag, the plaintext, associated data, key and nonce: no differential-privacy value"
+
+[[function]]
+file = "src/aes_gcm.rs"
+name = "open"
+class = "ciphertext and keys"
+reason = "an AES-128-GCM ciphertext with its tag, the plaintext, associated data, key and nonce: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "derive_key_pair"
+class = "key material"
+reason = "an HPKE X25519 key pair derived from input keying material: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "setup_base_sender"
+class = "ciphertext and keys"
+reason = "the HPKE encapsulated key and a sending context from a recipient public key and info: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "setup_base_sender_with_ephemeral"
+class = "ciphertext and keys"
+reason = "the HPKE encapsulated key and a sending context from a recipient public key, info and an ephemeral private key: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "setup_base_receiver"
+class = "ciphertext and keys"
+reason = "an HPKE receiving context from the encapsulated key, a private key and info: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "seal"
+class = "ciphertext and keys"
+reason = "an HPKE context's ciphertext, plaintext and associated data: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "open"
+class = "ciphertext and keys"
+reason = "an HPKE context's ciphertext, plaintext and associated data: no differential-privacy value"
+
+[[function]]
+file = "src/hpke.rs"
+name = "export"
+class = "key material"
+reason = "a secret exported from an HPKE context and its exporter context: no differential-privacy value"
+
+[[function]]
+file = "src/random.rs"
+name = "fill"
+class = "OS random bytes"
+reason = "bytes from the operating system's random source for keys and nonces: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "digest"
+class = "hash output"
+reason = "a SHA-256 digest of the input bytes: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "hmac"
+class = "hash output and keys"
+reason = "an HMAC-SHA256 tag, its key and message: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "hkdf_extract"
+class = "key material"
+reason = "an HKDF-SHA256 pseudorandom key from salt and input keying material: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "hkdf_expand"
+class = "key material"
+reason = "HKDF-SHA256 output keying material from a pseudorandom key and info: no differential-privacy value"
+
+[[function]]
+file = "src/x25519.rs"
+name = "x25519"
+class = "key material"
+reason = "an X25519 scalar, u-coordinate and result: no differential-privacy value"
+
+[[function]]
+file = "src/x25519.rs"
+name = "public_key"
+class = "key material"
+reason = "an X25519 private key and its public key: no differential-privacy value"
+
+[[function]]
+file = "src/x25519.rs"
+name = "diffie_hellman"
+class = "key material"
+reason = "an X25519 private key, the peer public key and the shared secret: no differential-privacy value"
