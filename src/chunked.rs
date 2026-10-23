@@ -116,6 +116,9 @@ pub enum ChunkedError {
     ChunkLength,
     /// The stream already ended (the last chunk was sealed or opened)
     Finished,
+    /// An earlier call on this sealer or opener failed: it accepts nothing more
+    /// (a sealer retried at the same position would repeat the keystream)
+    Failed,
     /// The operating system's entropy source failed
     Rng,
     /// Reading or writing the underlying stream failed
@@ -137,6 +140,7 @@ impl fmt::Display for ChunkedError {
             Self::Truncated => write!(f, "the stream ended without its last chunk"),
             Self::TooLong { limit } => write!(f, "the plaintext is longer than {limit} bytes"),
             Self::TooManyChunks => write!(f, "more than 2^32 chunks"),
+            Self::Failed => write!(f, "an earlier call failed, the stream accepts nothing more"),
             Self::ChunkLength => write!(f, "a chunk has the wrong length"),
             Self::Finished => write!(f, "the stream already ended"),
             Self::Rng => write!(f, "the operating system's entropy source failed"),
@@ -222,6 +226,7 @@ pub struct ChunkSealer {
     chunk_size: u32,
     next: u32,
     finished: bool,
+    failed: bool,
 }
 
 impl ChunkSealer {
@@ -264,6 +269,7 @@ impl ChunkSealer {
             chunk_size,
             next: 0,
             finished: false,
+            failed: false,
         })
     }
 
@@ -287,10 +293,27 @@ impl ChunkSealer {
     /// # Errors
     ///
     /// [`ChunkedError::ChunkLength`], [`ChunkedError::Finished`] after the last
-    /// chunk, [`ChunkedError::TooManyChunks`].
+    /// chunk, [`ChunkedError::TooManyChunks`] for a chunk that is not the last at
+    /// position `u32::MAX` (refused before anything is sealed: the last chunk
+    /// needs a position of its own), and [`ChunkedError::Failed`] for every call
+    /// after a call that failed (nothing is sealed).
     pub fn seal_chunk(&mut self, buf: &mut [u8], len: usize, last: bool) -> Result<usize> {
+        if self.failed {
+            return Err(ChunkedError::Failed);
+        }
+        let r = self.seal_once(buf, len, last);
+        if r.is_err() {
+            self.failed = true;
+        }
+        r
+    }
+
+    fn seal_once(&mut self, buf: &mut [u8], len: usize, last: bool) -> Result<usize> {
         if self.finished {
             return Err(ChunkedError::Finished);
+        }
+        if !last && self.next == u32::MAX {
+            return Err(ChunkedError::TooManyChunks);
         }
         let size = self.chunk_size as usize;
         let right_length = if last { len < size } else { len == size };
@@ -305,10 +328,8 @@ impl ChunkSealer {
         if last {
             self.finished = true;
         } else {
-            self.next = self
-                .next
-                .checked_add(1)
-                .ok_or(ChunkedError::TooManyChunks)?;
+            // below u32::MAX: checked before sealing
+            self.next += 1;
         }
         Ok(len + TAG_SIZE)
     }
@@ -321,6 +342,7 @@ pub struct ChunkOpener {
     chunk_size: u32,
     next: u32,
     finished: bool,
+    failed: bool,
 }
 
 impl ChunkOpener {
@@ -354,6 +376,7 @@ impl ChunkOpener {
             chunk_size,
             next: 0,
             finished: false,
+            failed: false,
         })
     }
 
@@ -377,10 +400,26 @@ impl ChunkOpener {
     ///
     /// [`ChunkedError::ChunkLength`], [`ChunkedError::Tampered`],
     /// [`ChunkedError::Finished`] after the last chunk,
-    /// [`ChunkedError::TooManyChunks`].
+    /// [`ChunkedError::TooManyChunks`] for a chunk that is not the last at
+    /// position `u32::MAX` (refused before anything is decrypted), and
+    /// [`ChunkedError::Failed`] for every call after a call that failed.
     pub fn open_chunk(&mut self, buf: &mut [u8], len: usize, last: bool) -> Result<usize> {
+        if self.failed {
+            return Err(ChunkedError::Failed);
+        }
+        let r = self.open_once(buf, len, last);
+        if r.is_err() {
+            self.failed = true;
+        }
+        r
+    }
+
+    fn open_once(&mut self, buf: &mut [u8], len: usize, last: bool) -> Result<usize> {
         if self.finished {
             return Err(ChunkedError::Finished);
+        }
+        if !last && self.next == u32::MAX {
+            return Err(ChunkedError::TooManyChunks);
         }
         let full = self.chunk_size as usize + TAG_SIZE;
         let right_length = if last {
@@ -399,10 +438,8 @@ impl ChunkOpener {
         if last {
             self.finished = true;
         } else {
-            self.next = self
-                .next
-                .checked_add(1)
-                .ok_or(ChunkedError::TooManyChunks)?;
+            // below u32::MAX: checked before opening
+            self.next += 1;
         }
         Ok(len - TAG_SIZE)
     }

@@ -224,7 +224,23 @@ pub fn open_to_end<R: Read>(
         if total > max_len {
             return Err(ChunkedError::TooLong { limit: max_len });
         }
-        out.extend_from_slice(&reader.plain);
+        extend_zeroizing(&mut out, &reader.plain, max_len);
     }
     Ok(out)
+}
+
+/// Appends `more` to `out` without leaving a copy behind: when `out` is full it
+/// moves to a new allocation (double the capacity, at most `max_len` unless more
+/// is needed) and the old one is zeroed as it is dropped, instead of growing by
+/// reallocation (which frees the old block without zeroing it)
+fn extend_zeroizing(out: &mut Zeroizing<Vec<u8>>, more: &[u8], max_len: u64) {
+    let need = out.len() + more.len();
+    if need > out.capacity() {
+        let limit = usize::try_from(max_len).unwrap_or(usize::MAX).max(need);
+        let capacity = out.capacity().saturating_mul(2).max(need).min(limit);
+        let mut grown = Zeroizing::new(Vec::with_capacity(capacity));
+        grown.extend_from_slice(out);
+        *out = grown;
+    }
+    out.extend_from_slice(more);
 }

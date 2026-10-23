@@ -215,42 +215,45 @@ fn two_streams_of_the_same_plaintext_differ() {
 fn the_core_refuses_chunks_of_the_wrong_length() {
     use alice_crypto::chunked::{ChunkOpener, ChunkSealer};
     let size = CHUNK as usize;
-    let mut s = ChunkSealer::new(&key(), 3, AAD, CHUNK).unwrap();
+    // each refusal on a fresh sealer / opener: after a refusal they accept nothing more
+    let sealer = || ChunkSealer::new(&key(), 3, AAD, CHUNK).unwrap();
     let mut buf = vec![0u8; size + TAG_SIZE];
     // a last chunk is shorter than a full one, any other chunk is exactly full
     assert!(matches!(
-        s.seal_chunk(&mut buf, size, true),
+        sealer().seal_chunk(&mut buf, size, true),
         Err(ChunkedError::ChunkLength)
     ));
     assert!(matches!(
-        s.seal_chunk(&mut buf, size - 1, false),
+        sealer().seal_chunk(&mut buf, size - 1, false),
         Err(ChunkedError::ChunkLength)
     ));
     // a buffer without room for the tag
     let mut short = vec![0u8; size];
     assert!(matches!(
-        s.seal_chunk(&mut short, size, false),
+        sealer().seal_chunk(&mut short, size, false),
         Err(ChunkedError::ChunkLength)
     ));
     // after the last chunk nothing more is sealed
+    let mut s = sealer();
     assert_eq!(s.seal_chunk(&mut buf, 10, true).unwrap(), 10 + TAG_SIZE);
     assert!(matches!(
         s.seal_chunk(&mut buf, 10, true),
         Err(ChunkedError::Finished)
     ));
 
-    let mut o = ChunkOpener::new(s.header(), |_| Ok(key()), AAD).unwrap();
+    let header = *s.header();
+    let opener = || ChunkOpener::new(&header, |_| Ok(key()), AAD).unwrap();
     let mut buf = vec![0u8; size + TAG_SIZE];
     assert!(matches!(
-        o.open_chunk(&mut buf, size + TAG_SIZE, true),
+        opener().open_chunk(&mut buf, size + TAG_SIZE, true),
         Err(ChunkedError::ChunkLength)
     ));
     assert!(matches!(
-        o.open_chunk(&mut buf, TAG_SIZE - 1, true),
+        opener().open_chunk(&mut buf, TAG_SIZE - 1, true),
         Err(ChunkedError::ChunkLength)
     ));
     assert!(matches!(
-        o.open_chunk(&mut buf, size, false),
+        opener().open_chunk(&mut buf, size, false),
         Err(ChunkedError::ChunkLength)
     ));
 }
