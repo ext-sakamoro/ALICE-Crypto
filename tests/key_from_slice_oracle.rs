@@ -17,7 +17,9 @@ fn rejects_every_length_but_32_and_reports_it() {
     for len in [0usize, 1, 16, 31, 33, 64] {
         let v = vec![0xa5u8; len];
         match Key::from_slice(&v) {
-            Err(CipherError::InvalidKeyLength(n)) => assert_eq!(n, len, "reported length for a {len}-byte slice"),
+            Err(CipherError::InvalidKeyLength(n)) => {
+                assert_eq!(n, len, "reported length for a {len}-byte slice")
+            }
             Err(e) => panic!("{len}-byte slice: want InvalidKeyLength({len}), got {e:?}"),
             Ok(_) => panic!("{len}-byte slice was accepted"),
         }
