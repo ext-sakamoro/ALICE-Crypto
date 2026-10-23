@@ -35,8 +35,15 @@ fn parameters() -> ([u8; 32], u32, Vec<u8>, [u8; 19], u32) {
 }
 
 /// Seals `pt` chunk by chunk with the core sealer and a fixed nonce prefix
-fn seal_with(pt: &[u8], key: &Key, key_id: u32, aad: &[u8], prefix: [u8; 19], chunk: u32) -> Vec<u8> {
-    let mut s = ChunkSealer::with_prefix(key, key_id, chunk, prefix).unwrap();
+fn seal_with(
+    pt: &[u8],
+    key: &Key,
+    key_id: u32,
+    aad: &[u8],
+    prefix: [u8; 19],
+    chunk: u32,
+) -> Vec<u8> {
+    let mut s = ChunkSealer::with_prefix(key, key_id, aad, chunk, prefix).unwrap();
     let mut out = s.header().to_vec();
     let size = chunk as usize;
     let mut rest = pt;
@@ -45,7 +52,7 @@ fn seal_with(pt: &[u8], key: &Key, key_id: u32, aad: &[u8], prefix: [u8; 19], ch
         let n = if last { rest.len() } else { size };
         let mut buf = vec![0u8; n + TAG_SIZE];
         buf[..n].copy_from_slice(&rest[..n]);
-        let len = s.seal_chunk(aad, &mut buf, n, last).unwrap();
+        let len = s.seal_chunk(&mut buf, n, last).unwrap();
         out.extend_from_slice(&buf[..len]);
         rest = &rest[n..];
         if last {

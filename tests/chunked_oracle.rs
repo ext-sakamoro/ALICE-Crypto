@@ -62,7 +62,11 @@ fn the_last_chunk_is_shorter_than_a_full_one() {
     // a length that fills whole chunks ends with an empty last chunk
     for (n, chunks) in [(0usize, 1usize), (4095, 1), (4096, 2), (3 * 4096, 4)] {
         let sealed = seal(&plaintext(n), CHUNK);
-        assert_eq!(sealed.len(), HEADER_SIZE + n + chunks * TAG_SIZE, "length {n}");
+        assert_eq!(
+            sealed.len(),
+            HEADER_SIZE + n + chunks * TAG_SIZE,
+            "length {n}"
+        );
     }
 }
 
@@ -72,9 +76,15 @@ fn a_stream_cut_anywhere_does_not_open() {
     let mut cuts: Vec<usize> = chunk_starts(&sealed, CHUNK);
     cuts.extend(chunk_starts(&sealed, CHUNK).iter().map(|s| s + 100));
     cuts.extend([0, 1, HEADER_SIZE - 1, sealed.len() - 1]);
+    cuts.retain(|c| *c < sealed.len());
+    assert!(cuts.len() >= 9, "{cuts:?}");
     for cut in cuts {
         let r = open(&sealed[..cut]);
-        assert!(r.is_err(), "a stream cut at {cut} of {} opened", sealed.len());
+        assert!(
+            r.is_err(),
+            "a stream cut at {cut} of {} opened",
+            sealed.len()
+        );
     }
 }
 
@@ -107,7 +117,13 @@ fn bytes_after_the_last_chunk_are_refused() {
     // the last chunk repeated after itself
     let mut v = sealed.clone();
     v.extend_from_slice(&sealed[last..]);
-    assert!(matches!(open(&v), Err(ChunkedError::Trailing)), "{:?}", open(&v));
+    // the reader finds the last chunk by the end of the input, so the appended bytes join the
+    // last chunk and it does not open
+    assert!(
+        matches!(open(&v), Err(ChunkedError::Tampered { .. })),
+        "{:?}",
+        open(&v)
+    );
     // a single extra byte
     let mut v = sealed.clone();
     v.push(0);
@@ -158,7 +174,10 @@ fn a_chunk_size_outside_the_bounds_is_refused_before_reading() {
         );
         let mut v = seal(&plaintext(10), CHUNK);
         v[5..9].copy_from_slice(&size.to_be_bytes());
-        assert!(matches!(open(&v), Err(ChunkedError::ChunkSize(s)) if s == size), "reader accepted {size}");
+        assert!(
+            matches!(open(&v), Err(ChunkedError::ChunkSize(s)) if s == size),
+            "reader accepted {size}"
+        );
     }
 }
 
@@ -176,7 +195,11 @@ fn an_unfinished_writer_leaves_a_stream_that_does_not_open() {
     w.write_all(&plaintext(9000)).unwrap();
     // only the full chunks reached the inner writer; the last chunk was never written
     let partial = w.into_unfinished();
-    assert!(matches!(open(&partial), Err(ChunkedError::Truncated)), "{:?}", open(&partial));
+    assert!(
+        matches!(open(&partial), Err(ChunkedError::Truncated)),
+        "{:?}",
+        open(&partial)
+    );
 }
 
 #[test]
@@ -186,4 +209,48 @@ fn two_streams_of_the_same_plaintext_differ() {
     let b = seal(&plaintext(100), CHUNK);
     assert_ne!(a[9..HEADER_SIZE], b[9..HEADER_SIZE]);
     assert_ne!(a, b);
+}
+
+#[test]
+fn the_core_refuses_chunks_of_the_wrong_length() {
+    use alice_crypto::chunked::{ChunkOpener, ChunkSealer};
+    let size = CHUNK as usize;
+    let mut s = ChunkSealer::new(&key(), 3, AAD, CHUNK).unwrap();
+    let mut buf = vec![0u8; size + TAG_SIZE];
+    // a last chunk is shorter than a full one, any other chunk is exactly full
+    assert!(matches!(
+        s.seal_chunk(&mut buf, size, true),
+        Err(ChunkedError::ChunkLength)
+    ));
+    assert!(matches!(
+        s.seal_chunk(&mut buf, size - 1, false),
+        Err(ChunkedError::ChunkLength)
+    ));
+    // a buffer without room for the tag
+    let mut short = vec![0u8; size];
+    assert!(matches!(
+        s.seal_chunk(&mut short, size, false),
+        Err(ChunkedError::ChunkLength)
+    ));
+    // after the last chunk nothing more is sealed
+    assert_eq!(s.seal_chunk(&mut buf, 10, true).unwrap(), 10 + TAG_SIZE);
+    assert!(matches!(
+        s.seal_chunk(&mut buf, 10, true),
+        Err(ChunkedError::Finished)
+    ));
+
+    let mut o = ChunkOpener::new(s.header(), |_| Ok(key()), AAD).unwrap();
+    let mut buf = vec![0u8; size + TAG_SIZE];
+    assert!(matches!(
+        o.open_chunk(&mut buf, size + TAG_SIZE, true),
+        Err(ChunkedError::ChunkLength)
+    ));
+    assert!(matches!(
+        o.open_chunk(&mut buf, TAG_SIZE - 1, true),
+        Err(ChunkedError::ChunkLength)
+    ));
+    assert!(matches!(
+        o.open_chunk(&mut buf, size, false),
+        Err(ChunkedError::ChunkLength)
+    ));
 }

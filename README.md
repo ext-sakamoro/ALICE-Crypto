@@ -159,6 +159,26 @@ let blob = reseal_envelope(&k1, 1, &k2, 2, b"record-7", &blob)?;
 assert_eq!(open_envelope(&k2, 2, b"record-7", &blob)?, b"secret");
 ```
 
+### Large values in chunks (STREAM)
+
+```rust
+use std::io::Write;
+use alice_crypto::chunked::{open_to_end, ChunkedWriter, DEFAULT_CHUNK_SIZE};
+use alice_crypto::Key;
+
+# fn main() -> Result<(), alice_crypto::chunked::ChunkedError> {
+let key = Key::from_bytes([7; 32]);
+let mut w = ChunkedWriter::new(Vec::new(), &key, 1, b"backup", DEFAULT_CHUNK_SIZE)?;
+w.write_all(b"a value too large to hold twice in memory")?;
+let sealed = w.finish()?; // writes the last chunk; an unfinished stream does not open
+let plain = open_to_end(&sealed[..], |_id| Ok(key.clone()), b"backup", 1 << 30)?;
+assert_eq!(&plain[..], b"a value too large to hold twice in memory");
+# Ok(())
+# }
+```
+
+The value is sealed chunk by chunk (STREAM over XChaCha20-Poly1305): moved, repeated, cut-short or extended streams do not open. A streaming reader (`UnverifiedChunkedReader`) hands out plaintext before the last chunk is checked, so treat it as unverified until `finish()` returns `Ok`; `open_to_end` returns nothing until the whole stream verified.
+
 ### Password-based key derivation (Argon2id, RFC 9106)
 
 ```rust

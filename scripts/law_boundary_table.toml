@@ -277,3 +277,39 @@ file = "src/stream.rs"
 name = "open_with_aad"
 class = "ciphertext and keys"
 reason = "sealed bytes, nonces and keys of the AEAD stream cipher: no differential-privacy value"
+
+[[function]]
+file = "src/chunked.rs"
+name = "new"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/chunked.rs"
+name = "header"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/chunked.rs"
+name = "seal_chunk"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/chunked.rs"
+name = "open_chunk"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/chunked/io.rs"
+name = "new"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
+
+[[function]]
+file = "src/chunked/io.rs"
+name = "open_to_end"
+class = "ciphertext and keys"
+reason = "a chunked stream (header with version, key id, chunk size and nonce prefix, then sealed chunks), its plaintext chunks, associated data and keys: no differential-privacy value"
