@@ -376,6 +376,7 @@ mod tests {
 }
 
 /// A differential-privacy parameter or value was not usable
+#[non_exhaustive]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DpError {
     /// ε or the sensitivity is not a finite positive number (0, negative, NaN
@@ -416,6 +417,9 @@ impl core::fmt::Display for DpError {
         }
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for DpError {}
 
 // ---------------------------------------------------------------------------
 // Exact sampling (Canonne, Kamath, Steinke, NeurIPS 2020, Algorithms 1 and 2)

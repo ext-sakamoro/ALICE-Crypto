@@ -39,6 +39,23 @@ pub enum CipherError {
     InvalidKeyLength(usize),
 }
 
+impl core::fmt::Display for CipherError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::EncryptionFailed => f.write_str("encryption failed"),
+            Self::DecryptionFailed => {
+                f.write_str("decryption failed (the data or its tag was changed, or another key)")
+            }
+            Self::RandomFailed => f.write_str("random number generation failed"),
+            Self::BufferTooSmall => f.write_str("the buffer is too small"),
+            Self::InvalidKeyLength(n) => write!(f, "a key is 32 bytes, got {n}"),
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for CipherError {}
+
 /// 32-byte symmetric key
 ///
 /// Zeroed on drop. Note that `Clone` produces an independent copy which is

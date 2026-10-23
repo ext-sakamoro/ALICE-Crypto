@@ -270,6 +270,7 @@ impl KeyStore {
 // ============================================================================
 
 /// 鍵ストアエラー。
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyStoreError {
     /// 鍵が見つからない。
@@ -286,6 +287,9 @@ impl core::fmt::Display for KeyStoreError {
         }
     }
 }
+
+#[cfg(feature = "std")]
+impl std::error::Error for KeyStoreError {}
 
 // ============================================================================
 // Key provider
