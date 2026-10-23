@@ -2,7 +2,7 @@
 
 use std::io::{self, Read, Write};
 
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 
 use super::{ChunkOpener, ChunkSealer, ChunkedError, Result, HEADER_SIZE};
 use crate::stream::{Key, TAG_SIZE};
@@ -100,6 +100,8 @@ pub struct UnverifiedChunkedReader<R: Read> {
     /// opened plaintext not yet handed out
     plain: Zeroizing<Vec<u8>>,
     plain_at: usize,
+    /// An earlier chunk failed (open or input error): nothing more is handed out
+    failed: bool,
 }
 
 impl<R: Read> UnverifiedChunkedReader<R> {
@@ -130,11 +132,29 @@ impl<R: Read> UnverifiedChunkedReader<R> {
             pending: Zeroizing::new(Vec::with_capacity(full + 1)),
             plain: Zeroizing::new(Vec::with_capacity(full)),
             plain_at: 0,
+            failed: false,
         })
     }
 
-    /// Opens the next chunk into `plain` (false once the stream ended)
+    /// Opens the next chunk into `plain` (false once the stream ended). After an
+    /// error the buffers are cleared and every later call returns
+    /// [`ChunkedError::Failed`].
     fn next_chunk(&mut self) -> Result<bool> {
+        if self.failed {
+            return Err(ChunkedError::Failed);
+        }
+        let r = self.next_chunk_once();
+        if r.is_err() {
+            self.failed = true;
+            // zeroed, not only emptied: they may hold sealed bytes or plaintext of the failed chunk
+            self.pending.zeroize();
+            self.plain.zeroize();
+            self.plain_at = 0;
+        }
+        r
+    }
+
+    fn next_chunk_once(&mut self) -> Result<bool> {
         if self.opener.is_finished() {
             return Ok(false);
         }

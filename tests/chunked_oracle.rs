@@ -334,7 +334,7 @@ fn the_reader_refuses_every_read_after_an_input_error() {
     let mut r = UnverifiedChunkedReader::new(input, |_| Ok(key()), AAD).unwrap();
     let mut out = vec![0u8; size];
     let e = r.read(&mut out).unwrap_err();
-    assert_eq!(e.to_string().contains("injected"), true, "{e}");
+    assert!(e.to_string().contains("injected"), "{e}");
     for _ in 0..2 {
         let mut probe = vec![0xEE_u8; size];
         let again = r.read(&mut probe);

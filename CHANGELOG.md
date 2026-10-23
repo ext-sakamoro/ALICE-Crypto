@@ -9,6 +9,7 @@ All notable changes to ALICE-Crypto are documented here.
   - std なしの核 `ChunkSealer` / `ChunkOpener` (呼び出し側の buffer を塊ごとに in-place で封じる・開く、塊の長さの規則を確かめる)
   - std の adapter: `ChunkedWriter` (`Write`、`finish` で最後の塊を書く、finish しなかった stream は開かない) / `UnverifiedChunkedReader` (`Read`、名前のとおり最後の塊を確かめる前の平文は未検証、`finish` が Ok を返して初めて全体を確かめた) / `open_to_end` (全体を確かめるまで何も返さない、長さの上限を超えたら失敗)
   - 位置 `u32::MAX` では最後でない塊を暗号化の前に `TooManyChunks` で拒否する (最後の塊はその位置を使える、`aead` の `Encryptor` と同じ規則) 封じる側・開く側とも、失敗した呼び出しの後は何も受け付けず `Failed` を返す (同じ位置の再試行で keystream が繰り返されない)
+  - `UnverifiedChunkedReader` は塊が開かない時や入力が失敗した時に読み途中の buffer を 0 にし、以後の `read` と `finish` は `Failed` を返す (古い平文や暗号文を渡さない、計算の溢れで止まらない)
   - `open_to_end` の出力は足りなくなると新しい割り当てに移り、古い割り当ては 0 にしてから解放する (realloc で平文の写しを解放しない) 試験 `tests/chunked_freed_memory.rs` は解放される block を走査し、平文の残った block が 0 件であることを確かめる (`chacha20poly1305` 0.10.1 は鍵を drop で常に 0 にする)
   - 独立した参照 `tests/data/chunked/chunked_ref.py` (pycryptodome の XChaCha20-Poly1305 に STREAM-BE32 の nonce を手で組む) が書いた vector と bytes が一致することを試験で確かめる
 - `scripts/law_boundary_table.toml`: chunked の 6 関数を「暗号文と鍵」に分類 (bytes を扱う公開関数 60、表の行 52)
