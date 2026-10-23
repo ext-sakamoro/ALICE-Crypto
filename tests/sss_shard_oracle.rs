@@ -16,6 +16,8 @@
 //! - `from_bytes` refuses a wrong version, threshold < 2, x = 0, an empty y, a length that does not match, a bad
 //!   check, and trailing or missing bytes (`Malformed`)
 //! - `to_bytes` and `from_bytes` round-trip, and the encoding of a split shard decodes to the same shard
+//! - an edited threshold with a recomputed check decodes, and `recover` still refuses it with the other shards of
+//!   its split (`InvalidShard`); `split` refuses a secret longer than `u32::MAX` bytes (`SecretTooLong`)
 //! - `Debug` does not show y
 
 use alice_crypto::sss::{self, Shard, SssError};
@@ -217,5 +219,38 @@ fn shards_of_different_thresholds_and_the_same_length_are_refused() {
     assert_eq!(
         sss::recover(&[a[0].clone(), a[1].clone(), b[2].clone()]).err(),
         Some(SssError::InvalidShard)
+    );
+}
+
+#[test]
+fn a_shard_with_an_edited_threshold_and_a_recomputed_check_is_refused() {
+    // the check is an unkeyed hash, so anyone can change the threshold byte and recompute it: from_bytes accepts
+    // the result, and the shard keeps the split id and the length of the split it came from
+    let shards = sss::split(b"8 bytes!", 3, 2).unwrap();
+    let mut bytes = shards[0].to_bytes().unwrap().to_vec();
+    assert_eq!(bytes[1], 2);
+    bytes[1] = 3;
+    let body = bytes.len() - 16;
+    let check = alice_crypto::hash::hash(&bytes[..body]);
+    bytes[body..].copy_from_slice(&check.as_bytes()[..16]);
+    let edited = Shard::from_bytes(&bytes).unwrap();
+    assert_eq!(
+        (edited.threshold(), edited.split_id(), edited.len()),
+        (3, shards[0].split_id(), shards[0].len())
+    );
+    assert_eq!(
+        sss::recover(&[edited, shards[1].clone(), shards[2].clone()]).err(),
+        Some(SssError::InvalidShard)
+    );
+}
+
+#[cfg(target_pointer_width = "64")]
+#[test]
+fn split_refuses_a_secret_longer_than_the_length_field() {
+    // vec! of zeros is allocated zeroed and lazily, so the 4 GiB are not touched
+    let secret = vec![0u8; u32::MAX as usize + 1];
+    assert_eq!(
+        sss::split(&secret, 3, 2).err(),
+        Some(SssError::SecretTooLong)
     );
 }
