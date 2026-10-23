@@ -122,6 +122,7 @@ pub mod hpke;
 pub mod kdf;
 pub mod keystore;
 pub mod mac;
+pub mod random;
 pub mod semantics;
 pub mod sha256;
 pub mod signature;

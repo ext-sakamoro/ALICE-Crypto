@@ -152,16 +152,12 @@ fn key_schedule(shared: &[u8; 32], info: &[u8]) -> Context {
 ///
 /// [`HpkeError::SmallOrderKey`] when `pk_r` has small order; [`HpkeError::RngFailed`] when the operating
 /// system's random source is unavailable.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "secret material generation, not Law output: an HPKE ephemeral key must be unpredictable and used once (RFC 9180 section 9.7.2)"
-)]
 pub fn setup_base_sender(
     pk_r: &[u8; x25519::KEY_SIZE],
     info: &[u8],
 ) -> Result<([u8; ENC_SIZE], Context), HpkeError> {
     let mut ikm = Zeroizing::new([0u8; 32]);
-    getrandom::getrandom(&mut *ikm).map_err(|_| HpkeError::RngFailed)?;
+    crate::random::fill(&mut *ikm).map_err(|_| HpkeError::RngFailed)?;
     let (mut sk_e, _) = derive_key_pair(&*ikm);
     let out = setup_base_sender_with_ephemeral(pk_r, info, &sk_e);
     sk_e.zeroize();
