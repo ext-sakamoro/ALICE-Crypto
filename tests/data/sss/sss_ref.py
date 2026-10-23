@@ -6,14 +6,15 @@ definition: each secret byte s gets the polynomial f(x) = s + c1 x + ... + c(k-1
 coefficients below (a test needs repeatable shares; real shares use random ones), and shard x holds f(x) for
 every byte. The shard byte form, version 1:
 
-  [version = 1][threshold k][x][length of y, u32 little-endian][y][check]
+  [version = 1][threshold k][x][split id, 16 bytes][length of y, u32 little-endian][y][check]
 
-where check is the first 16 bytes of the BLAKE3 hash (the BLAKE3 below is written from the specification and is
+where the split id is the same for every shard of one split (the crate draws it at random; here
+it is fixed), and check is the first 16 bytes of the BLAKE3 hash (the BLAKE3 below is written from the specification and is
 checked against official vectors of the hash mode before use) of everything before it.
 
 Prints the vectors that `tests/sss_shard_oracle.rs` compares the crate against:
 
-* `case <secret hex> <k> <n>` followed by n lines `shard <x> <encoding hex>`
+* `case <secret hex> <k> <n> <split id hex>` followed by n lines `shard <x> <encoding hex>`
 * `bad <reason> <encoding hex>`: encodings the crate must refuse
 
 Regenerate with:
@@ -148,33 +149,42 @@ def share(secret, k, x):
     return bytes(y)
 
 
-def encode(k, x, y, version=1):
-    head = bytes([version, k, x]) + struct.pack("<I", len(y)) + y
+def encode(k, x, y, split_id, version=1):
+    head = bytes([version, k, x]) + split_id + struct.pack("<I", len(y)) + y
     return head + blake3(head)[:16]
+
+
+def split_id(n):
+    return bytes((n * 16 + i) % 256 for i in range(16))
 
 
 def main():
     for n, want in OFFICIAL_HASH:
         if blake3(bytes(i % 251 for i in range(n))).hex() != want:
             sys.exit(f"BLAKE3 reference disagrees with the official hash vector for input length {n}")
-    cases = [(b"Hello, ALICE!", 3, 5), (bytes(range(32)), 2, 2), (b"\x00", 2, 3), (bytes([0xFF] * 40), 5, 7)]
-    for secret, k, n in cases:
-        print(f"case {secret.hex()} {k} {n}")
+    # the last two: two splits of different 8-byte secrets with the same threshold and length, told apart
+    # only by their split ids
+    cases = [(b"Hello, ALICE!", 3, 5), (bytes(range(32)), 2, 2), (b"\x00", 2, 3), (bytes([0xFF] * 40), 5, 7),
+             (b"secret-A", 2, 3), (b"secret-B", 2, 3)]
+    for i, (secret, k, n) in enumerate(cases):
+        sid = split_id(i)
+        print(f"case {secret.hex()} {k} {n} {sid.hex()}")
         for x in range(1, n + 1):
-            print(f"shard {x} {encode(k, x, share(secret, k, x)).hex()}")
-    good = encode(3, 1, share(b"Hello, ALICE!", 3, 1))
-    flipped = bytearray(good); flipped[9] ^= 1
+            print(f"shard {x} {encode(k, x, share(secret, k, x), sid).hex()}")
+    sid = split_id(0)
+    good = encode(3, 1, share(b"Hello, ALICE!", 3, 1), sid)
+    flipped = bytearray(good); flipped[25] ^= 1
     bad_check = bytearray(good); bad_check[-1] ^= 1
-    print(f"bad version {encode(3, 1, b'abc', version=2).hex()}")
-    print(f"bad threshold {encode(1, 1, b'abc').hex()}")
-    print(f"bad x {encode(3, 0, b'abc').hex()}")
-    print(f"bad empty {encode(3, 1, b'').hex()}")
+    print(f"bad version {encode(3, 1, b'abc', sid, version=2).hex()}")
+    print(f"bad threshold {encode(1, 1, b'abc', sid).hex()}")
+    print(f"bad x {encode(3, 0, b'abc', sid).hex()}")
+    print(f"bad empty {encode(3, 1, b'', sid).hex()}")
     print(f"bad check {bytes(bad_check).hex()}")
     print(f"bad body {bytes(flipped).hex()}")
     print(f"bad truncated {good[:-1].hex()}")
     print(f"bad trailing {(good + b'\x00').hex()}")
     print(f"bad short {good[:6].hex()}")
-    long_len = bytes([1, 3, 1]) + struct.pack("<I", 4) + b"abc"
+    long_len = bytes([1, 3, 1]) + sid + struct.pack("<I", 4) + b"abc"
     print(f"bad length {(long_len + blake3(long_len)[:16]).hex()}")
 
 

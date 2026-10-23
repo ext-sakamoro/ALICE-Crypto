@@ -124,3 +124,21 @@ fn the_error_is_a_copyable_value_with_a_message() {
     }
     let _: &dyn std::error::Error = &KeyProviderError::Irrecoverable("gone");
 }
+
+#[test]
+fn a_purged_key_is_irrecoverable_not_unknown() {
+    // the generation existed: removing it does not make it a generation that never was
+    let mut s = KeyStore::new().with_default_ttl(50);
+    s.insert(A, 100); // id 1, expires at 150
+    s.insert(B, 120); // id 2, expires at 170
+    assert_eq!(s.purge_expired(160), 1);
+    assert!(matches!(
+        s.provider_at(160).by_generation(1),
+        Err(KeyProviderError::Irrecoverable(_))
+    ));
+    assert_eq!(*s.provider_at(160).by_generation(2).unwrap().as_bytes(), B);
+    assert_eq!(
+        s.provider_at(160).by_generation(3).err(),
+        Some(KeyProviderError::UnknownGeneration(3))
+    );
+}

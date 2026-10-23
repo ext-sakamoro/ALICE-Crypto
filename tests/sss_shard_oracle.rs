@@ -5,12 +5,14 @@
 //! BLAKE3 written from the specification (checked against official hash vectors first). The crate decodes those
 //! shards and recovers the secrets the script started from.
 //!
-//! The byte form, version 1: `[1][threshold k][x][u32-LE length of y][y][first 16 bytes of BLAKE3(everything before)]`.
+//! The byte form, version 1: `[1][threshold k][x][split id, 16 bytes][u32-LE length of y][y][first 16 bytes of
+//! BLAKE3(everything before)]`. The split id is drawn at random for each split and is the same in all its shards.
 //! The check catches a damaged or mistyped shard; it is not authentication (anyone can make a valid-looking shard).
 //!
 //! Rules pinned here:
-//! - a shard knows its threshold; `recover` refuses fewer shards than that (`NotEnoughShards`), and shards of
-//!   different thresholds or lengths (`InvalidShard`), instead of returning wrong bytes or panicking
+//! - a shard knows its threshold and its split; `recover` refuses fewer shards than the threshold
+//!   (`NotEnoughShards`), and shards of different splits, thresholds or lengths (`InvalidShard`), instead of
+//!   returning wrong bytes or panicking: two splits with the same threshold and length differ only in the split id
 //! - `from_bytes` refuses a wrong version, threshold < 2, x = 0, an empty y, a length that does not match, a bad
 //!   check, and trailing or missing bytes (`Malformed`)
 //! - `to_bytes` and `from_bytes` round-trip, and the encoding of a split shard decodes to the same shard
@@ -30,6 +32,7 @@ fn hex(s: &str) -> Vec<u8> {
 struct Case {
     secret: Vec<u8>,
     k: u8,
+    split_id: [u8; 16],
     shards: Vec<(u8, Vec<u8>)>,
 }
 
@@ -41,6 +44,7 @@ fn cases() -> Vec<Case> {
             "case" => out.push(Case {
                 secret: hex(f[1]),
                 k: f[2].parse().unwrap(),
+                split_id: hex(f[4]).try_into().unwrap(),
                 shards: Vec::new(),
             }),
             "shard" => out
@@ -51,7 +55,7 @@ fn cases() -> Vec<Case> {
             _ => {}
         }
     }
-    assert!(out.len() >= 4 && out.iter().all(|c| !c.shards.is_empty()));
+    assert!(out.len() >= 6 && out.iter().all(|c| !c.shards.is_empty()));
     out
 }
 
@@ -82,6 +86,7 @@ fn the_reference_shards_decode_and_recover_the_secret() {
         let shards = decode(&c);
         for (s, (x, _)) in shards.iter().zip(&c.shards) {
             assert_eq!((s.x(), s.threshold(), s.len()), (*x, c.k, c.secret.len()));
+            assert_eq!(s.split_id(), c.split_id);
         }
         let k = usize::from(c.k);
         assert_eq!(*sss::recover(&shards[..k]).unwrap(), c.secret);
@@ -92,14 +97,14 @@ fn the_reference_shards_decode_and_recover_the_secret() {
         assert_eq!(*sss::recover(&shards).unwrap(), c.secret);
         recovered += 1;
     }
-    assert!(recovered >= 4);
+    assert!(recovered >= 6);
 }
 
 #[test]
 fn the_byte_form_round_trips() {
     for c in cases() {
         for (_, b) in &c.shards {
-            assert_eq!(*Shard::from_bytes(b).unwrap().to_bytes(), *b);
+            assert_eq!(*Shard::from_bytes(b).unwrap().to_bytes().unwrap(), *b);
         }
     }
 }
@@ -146,10 +151,11 @@ fn split_shards_carry_their_threshold_and_survive_the_byte_form() {
     let shards = sss::split(secret, 5, 3).unwrap();
     let again: Vec<Shard> = shards
         .iter()
-        .map(|s| Shard::from_bytes(&s.to_bytes()).unwrap())
+        .map(|s| Shard::from_bytes(&s.to_bytes().unwrap()).unwrap())
         .collect();
     for (s, t) in shards.iter().zip(&again) {
         assert_eq!((t.x(), t.threshold(), t.len()), (s.x(), 3, secret.len()));
+        assert_eq!(t.split_id(), shards[0].split_id());
     }
     assert_eq!(*sss::recover(&again[1..4]).unwrap(), secret.to_vec());
 }
@@ -174,4 +180,42 @@ fn the_error_has_a_message() {
     ] {
         assert!(!e.to_string().is_empty());
     }
+}
+
+#[test]
+fn two_splits_with_the_same_threshold_and_length_are_not_mixed() {
+    // the reference pair: 8-byte secrets, threshold 2, told apart only by the split id
+    let all = cases();
+    let (a, b) = (decode(&all[4]), decode(&all[5]));
+    assert_eq!(
+        (a[0].threshold(), a[0].len()),
+        (b[0].threshold(), b[0].len())
+    );
+    assert_eq!(*sss::recover(&a[..2]).unwrap(), all[4].secret);
+    let mixed = [a[0].clone(), b[1].clone()];
+    assert_eq!(sss::recover(&mixed).err(), Some(SssError::InvalidShard));
+}
+
+#[test]
+fn shards_of_two_random_splits_are_not_mixed() {
+    // the probe: two splits of different 8-byte secrets, threshold 2
+    let a = sss::split(b"8 bytes!", 3, 2).unwrap();
+    let b = sss::split(b"other 8B", 3, 2).unwrap();
+    assert_ne!(a[0].split_id(), b[0].split_id());
+    assert_eq!(*sss::recover(&a[..2]).unwrap(), b"8 bytes!".to_vec());
+    assert_eq!(
+        sss::recover(&[a[0].clone(), b[1].clone()]).err(),
+        Some(SssError::InvalidShard)
+    );
+}
+
+#[test]
+fn shards_of_different_thresholds_and_the_same_length_are_refused() {
+    let a = sss::split(b"8 bytes!", 3, 2).unwrap();
+    let b = sss::split(b"8 bytes!", 3, 3).unwrap();
+    assert_eq!((a[0].len(), b[0].len()), (8, 8));
+    assert_eq!(
+        sss::recover(&[a[0].clone(), a[1].clone(), b[2].clone()]).err(),
+        Some(SssError::InvalidShard)
+    );
 }
