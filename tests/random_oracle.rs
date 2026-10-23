@@ -30,10 +30,13 @@ fn an_empty_fill_is_ok() {
 #[test]
 fn the_error_is_typed_and_says_what_failed() {
     // the OS source cannot be made to fail from a test: pin the type and its message instead
-    let r: Result<(), RngError> = Err(RngError::Unavailable);
-    let e = r.unwrap_err();
-    assert_eq!(e, RngError::Unavailable);
-    assert_eq!(e.to_string(), "the operating system's random source is unavailable");
+    let fill: fn(&mut [u8]) -> Result<(), RngError> = random::fill;
+    let _ = fill;
+    let e = RngError::Unavailable;
+    assert_eq!(
+        e.to_string(),
+        "the operating system's random source is unavailable"
+    );
     fn is_error<E: std::error::Error>(_: &E) {}
     is_error(&e);
 }
