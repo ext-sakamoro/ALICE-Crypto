@@ -65,6 +65,11 @@ class Artifacts(unittest.TestCase):
         targets = {t for t, _ in nc.BUILDS}
         self.assertEqual(targets, {None, "wasm32-unknown-unknown", "thumbv7em-none-eabihf"})
 
+    def test_wasm32_is_built_with_std_through_the_browser_random_source(self):
+        # a browser (or any wasm32-unknown-unknown host with a JS environment) gets the OS random source from
+        # getrandom's `js` backend: the default std build, not only the no_std + custom-rng one
+        self.assertIn(("wasm32-unknown-unknown", "wasm-js"), nc.BUILDS)
+
 
 if __name__ == "__main__":
     unittest.main()
