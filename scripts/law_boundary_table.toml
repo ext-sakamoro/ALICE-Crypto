@@ -268,6 +268,12 @@ reason = "the public threshold of the split one Shamir share came from (one byte
 
 [[function]]
 file = "src/sss.rs"
+name = "split_id"
+class = "secret shares"
+reason = "the public random id of the split one Shamir share came from (16 bytes): no differential-privacy value"
+
+[[function]]
+file = "src/sss.rs"
 name = "to_bytes"
 class = "secret shares"
 reason = "the byte form of one Shamir share (version, threshold, x, length, share, check): no differential-privacy value"

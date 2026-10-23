@@ -10,10 +10,13 @@
 use crate::gf256::{batch_inv, GF};
 use zeroize::{Zeroize, Zeroizing};
 
-/// A share of the secret: its x coordinate (1-255), the threshold of the split it came from, and y, one byte per
-/// byte of the secret.
+/// A share of the secret: its x coordinate (1-255), the threshold and the id of the split it came from, and y,
+/// one byte per byte of the secret.
 ///
-/// `y` is zeroed on drop; `x` and the threshold are public. `Debug` shows x, the threshold and the length, never y.
+/// The split id is 16 random bytes drawn by [`split`], the same in every shard of that split: shards of two splits
+/// with the same threshold and length are told apart by it, so [`recover`] never combines them into wrong bytes.
+///
+/// `y` is zeroed on drop; `x`, the threshold and the split id are public. `Debug` shows x, the threshold and the length, never y.
 /// A shard is made by [`split`] or read back with [`Shard::from_bytes`]; its fields are private, so a shard always
 /// has x != 0, a threshold of at least 2 and a non-empty y.
 ///
@@ -23,14 +26,18 @@ use zeroize::{Zeroize, Zeroizing};
 pub struct Shard {
     x: u8,
     threshold: u8,
+    split_id: [u8; SPLIT_ID_LEN],
     y: Vec<u8>,
 }
+
+/// Bytes of a split id.
+pub const SPLIT_ID_LEN: usize = 16;
 
 /// The version byte of the shard byte form.
 pub const SHARD_FORMAT_VERSION: u8 = 1;
 
-/// Bytes before y in the shard byte form: version, threshold, x, u32 length.
-const SHARD_HEADER: usize = 7;
+/// Bytes before y in the shard byte form: version, threshold, x, split id, u32 length.
+const SHARD_HEADER: usize = 3 + SPLIT_ID_LEN + 4;
 /// Bytes of the check after y: the first 16 bytes of the BLAKE3 hash of everything before it.
 const SHARD_CHECK: usize = 16;
 
@@ -47,6 +54,12 @@ impl Shard {
         self.threshold
     }
 
+    /// The id of the split this shard came from (16 random bytes, the same in every shard of the split).
+    #[must_use]
+    pub const fn split_id(&self) -> [u8; SPLIT_ID_LEN] {
+        self.split_id
+    }
+
     /// The length of the secret (and of y), in bytes.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -59,25 +72,26 @@ impl Shard {
         self.y.is_empty()
     }
 
-    /// The shard byte form, version 1: `[1][threshold][x][u32 little-endian length of y][y][check]`, where the
-    /// check is the first 16 bytes of the BLAKE3 hash of everything before it. The check catches a damaged or
-    /// mistyped shard; it is not authentication. The returned buffer is zeroed on drop (it holds y).
-    #[must_use]
-    pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
+    /// The shard byte form, version 1: `[1][threshold][x][split id, 16 bytes][u32 little-endian length of
+    /// y][y][check]`, where the check is the first 16 bytes of the BLAKE3 hash of everything before it. The check
+    /// catches a damaged or mistyped shard; it is not authentication. The returned buffer is zeroed on drop (it
+    /// holds y).
+    ///
+    /// # Errors
+    ///
+    /// [`SssError::SecretTooLong`] for a share longer than `u32::MAX` bytes (the length field's range).
+    pub fn to_bytes(&self) -> Result<Zeroizing<Vec<u8>>, SssError> {
+        let len = u32::try_from(self.y.len()).map_err(|_| SssError::SecretTooLong)?;
         let mut out = Zeroizing::new(Vec::with_capacity(
             SHARD_HEADER + self.y.len() + SHARD_CHECK,
         ));
         out.extend_from_slice(&[SHARD_FORMAT_VERSION, self.threshold, self.x]);
-        // a shard's y is as long as the secret, and `from_bytes` refuses more than u32::MAX bytes
-        out.extend_from_slice(
-            &u32::try_from(self.y.len())
-                .unwrap_or(u32::MAX)
-                .to_le_bytes(),
-        );
+        out.extend_from_slice(&self.split_id);
+        out.extend_from_slice(&len.to_le_bytes());
         out.extend_from_slice(&self.y);
         let check = crate::hash::hash(&out);
         out.extend_from_slice(&check.as_bytes()[..SHARD_CHECK]);
-        out
+        Ok(out)
     }
 
     /// Reads a shard written by [`Shard::to_bytes`].
@@ -92,7 +106,10 @@ impl Shard {
         }
         let (body, check) = bytes.split_at(bytes.len() - SHARD_CHECK);
         let (version, threshold, x) = (body[0], body[1], body[2]);
-        let len = u32::from_le_bytes([body[3], body[4], body[5], body[6]]);
+        let mut split_id = [0u8; SPLIT_ID_LEN];
+        split_id.copy_from_slice(&body[3..3 + SPLIT_ID_LEN]);
+        let l = &body[3 + SPLIT_ID_LEN..SHARD_HEADER];
+        let len = u32::from_le_bytes([l[0], l[1], l[2], l[3]]);
         let y = &body[SHARD_HEADER..];
         if version != SHARD_FORMAT_VERSION
             || threshold < 2
@@ -106,6 +123,7 @@ impl Shard {
         Ok(Self {
             x,
             threshold,
+            split_id,
             y: y.to_vec(),
         })
     }
@@ -122,6 +140,7 @@ impl core::fmt::Debug for Shard {
         f.debug_struct("Shard")
             .field("x", &self.x)
             .field("threshold", &self.threshold)
+            .field("split_id", &self.split_id)
             .field("len", &self.y.len())
             .finish_non_exhaustive()
     }
@@ -145,10 +164,12 @@ pub enum SssError {
     DuplicateX,
     /// The operating system's random source is unavailable.
     RandomFailed,
-    /// The shards given are not of one split: their thresholds or lengths differ.
+    /// The shards given are not of one split: their split ids, thresholds or lengths differ.
     InvalidShard,
     /// Bytes that are not a shard byte form (see [`Shard::from_bytes`]).
     Malformed,
+    /// A secret (or share) longer than `u32::MAX` bytes, the range of the byte form's length field.
+    SecretTooLong,
 }
 
 impl core::fmt::Display for SssError {
@@ -161,8 +182,11 @@ impl core::fmt::Display for SssError {
             Self::EmptySecret => "the secret is empty",
             Self::DuplicateX => "two shards have the same x",
             Self::RandomFailed => "random number generation failed",
-            Self::InvalidShard => "the shards are not of one split (thresholds or lengths differ)",
+            Self::InvalidShard => {
+                "the shards are not of one split (split ids, thresholds or lengths differ)"
+            }
             Self::Malformed => "not a shard byte form",
+            Self::SecretTooLong => "the secret is longer than u32::MAX bytes",
         })
     }
 }
@@ -213,12 +237,20 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
     if n == 0 {
         return Err(SssError::TooManyShards);
     }
+    if u32::try_from(secret.len()).is_err() {
+        return Err(SssError::SecretTooLong);
+    }
+    let mut split_id = [0u8; SPLIT_ID_LEN];
+    if getrandom::getrandom(&mut split_id).is_err() {
+        return Err(SssError::RandomFailed);
+    }
 
     // Pre-allocate output shards
     let mut shards: Vec<Shard> = (1..=n)
         .map(|x| Shard {
             x,
             threshold: k,
+            split_id,
             y: Vec::with_capacity(secret.len()),
         })
         .collect();
@@ -298,7 +330,7 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
 /// # Errors
 ///
 /// [`SssError::NotEnoughShards`] for no shards or fewer than their threshold, [`SssError::InvalidShard`] for
-/// shards whose thresholds or lengths differ, [`SssError::TooManyShards`] for more than 255,
+/// shards whose split ids, thresholds or lengths differ, [`SssError::TooManyShards`] for more than 255,
 /// [`SssError::DuplicateX`] for two shards with the same x.
 pub fn recover(shards: &[Shard]) -> Result<Zeroizing<Vec<u8>>, SssError> {
     let Some(first) = shards.first() else {
@@ -310,11 +342,10 @@ pub fn recover(shards: &[Shard]) -> Result<Zeroizing<Vec<u8>>, SssError> {
         return Err(SssError::TooManyShards);
     }
     // a shard of another split would interpolate a different polynomial (wrong bytes), and a shorter y would be
-    // read past its end
-    if shards
-        .iter()
-        .any(|s| s.threshold != first.threshold || s.y.len() != first.y.len())
-    {
+    // read past its end: two splits with the same threshold and length differ in the split id
+    if shards.iter().any(|s| {
+        s.split_id != first.split_id || s.threshold != first.threshold || s.y.len() != first.y.len()
+    }) {
         return Err(SssError::InvalidShard);
     }
     if k < usize::from(first.threshold) {

@@ -6,7 +6,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-use alloc::collections::BTreeMap;
+use alloc::collections::{BTreeMap, BTreeSet};
 use zeroize::Zeroize;
 
 /// 鍵 ID。
@@ -69,6 +69,8 @@ impl Drop for KeyEntry {
 pub struct KeyStore {
     /// 鍵エントリ (ID → エントリ)。
     entries: BTreeMap<KeyId, KeyEntry>,
+    /// Ids whose entries `purge_expired` removed: they existed, so asking for one is not an unknown id.
+    purged: BTreeSet<KeyId>,
     /// 現在アクティブな鍵 ID。
     active_id: Option<KeyId>,
     /// 次の鍵 ID。
@@ -83,6 +85,7 @@ impl KeyStore {
     pub const fn new() -> Self {
         Self {
             entries: BTreeMap::new(),
+            purged: BTreeSet::new(),
             active_id: None,
             next_id: 1,
             default_ttl: 0,
@@ -239,6 +242,7 @@ impl KeyStore {
         let count = expired_ids.len();
         for id in expired_ids {
             self.entries.remove(&id);
+            self.purged.insert(id);
             if self.active_id == Some(id) {
                 self.active_id = None;
             }
@@ -295,8 +299,10 @@ impl std::error::Error for KeyStoreError {}
 // Key provider
 // ============================================================================
 
-/// The generation of a key held by a [`KeyProvider`]: the 32-bit key id an envelope header carries. Generations
-/// start at 1; 0 is never a generation.
+/// The id under which a [`KeyProvider`] hands out a key: the 32-bit key id an envelope header carries, and the
+/// name a store gives one key. It is an id, not a version counter: each key a store holds has its own, and a store
+/// never gives the same id to two keys. For [`KeyStore`] it is exactly the key's [`KeyId`] (which must fit 32 bits).
+/// Ids start at 1; 0 is never one.
 pub type KeyGeneration = u32;
 
 /// A store of 32-byte keys by generation, the one shape every key store implements (in memory, an OS keychain,
@@ -305,6 +311,10 @@ pub type KeyGeneration = u32;
 ///
 /// Rotation is not part of the trait: a store that can make keys rotates with its own method, keeping the
 /// earlier generations readable.
+///
+/// Expiry limits sealing, not opening: [`KeyProvider::current`] never returns an expired key, while
+/// [`KeyProvider::by_generation`] still returns one (data sealed before the key expired stays readable). Only a key
+/// that was revoked or removed is refused, as [`KeyProviderError::Irrecoverable`].
 pub trait KeyProvider: Send + Sync {
     /// The key new data is sealed with, and its generation.
     ///
@@ -386,9 +396,15 @@ impl KeyProvider for KeyStoreProvider<'_> {
     }
 
     fn by_generation(&self, generation: KeyGeneration) -> Result<crate::Key, KeyProviderError> {
+        let id = KeyId::from(generation);
+        if self.store.purged.contains(&id) {
+            return Err(KeyProviderError::Irrecoverable(
+                "the key was removed after it expired",
+            ));
+        }
         let entry = self
             .store
-            .get(KeyId::from(generation)) // ids start at 1, so generation 0 is never found
+            .get(id) // ids start at 1, so generation 0 is never found
             .ok_or(KeyProviderError::UnknownGeneration(generation))?;
         if entry.revoked {
             return Err(KeyProviderError::Irrecoverable("the key was revoked"));
