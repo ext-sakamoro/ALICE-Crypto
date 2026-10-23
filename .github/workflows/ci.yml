@@ -9,6 +9,7 @@ name: CI
 #   allocator を要求して落ちた (thumbv7em は cdylib を黙って落とすので見えなかった) 0.4.1 で cdylib を外し、
 #   `consumers/no_std` (std なしで依存する下流 crate) を host / wasm32-unknown-unknown / thumbv7em で build する
 #   bare-metal と wasm32-unknown-unknown は getrandom 非対応 target なので `custom-rng` 込み
+#   wasm32-unknown-unknown は std の既定の build も `wasm-js` (getrandom の js backend、JavaScript の環境の乱数) で build する
 # - feature-powerset: std 固定 depth 2 (std なしの組合せは no_std job で検証)
 # - sibling path dep なし (2026-09-16: no-op だった stub action は撤去)
 
@@ -218,7 +219,7 @@ jobs:
       # a crate that depends on alice-crypto without std builds the declared
       # crate-types, which the builds above (of alice-crypto itself) do not show
       # the way a user sees them; both rlibs must be reported for every target
-      - name: Downstream no_std crate (host, wasm32-unknown-unknown, thumbv7em)
+      - name: Downstream no_std crate (host, wasm32-unknown-unknown with and without std, thumbv7em)
         run: python3 scripts/no_std_consumer.py
       - name: Downstream no_std crate (checker tests)
         run: python3 scripts/test_no_std_consumer.py

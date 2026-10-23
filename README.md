@@ -51,6 +51,8 @@ alice-crypto = { version = "0.1" }
 | `std` | yes | Standard library support (enables OS RNG, std I/O) |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
+| `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below) |
+| `wasm-js` | no | `wasm32-unknown-unknown` in a JavaScript environment (a browser or Node): implies `std`, the random source is `crypto.getRandomValues` through `getrandom`'s `js` backend |
 
 For `no_std` environments (embedded, RTOS, WASM):
 
@@ -66,6 +68,14 @@ final binary (`getrandom::register_custom_getrandom!`, see the getrandom docs):
 ```toml
 [dependencies]
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc", "custom-rng"] }
+```
+
+In a browser or other JavaScript environment (`wasm32-unknown-unknown`), use the default std build with `wasm-js`,
+which takes the random source from `crypto.getRandomValues`:
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.6", features = ["wasm-js"] }
 ```
 
 ## Usage

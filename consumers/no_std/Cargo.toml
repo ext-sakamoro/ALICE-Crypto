@@ -16,6 +16,8 @@ alice-crypto = { path = "../..", default-features = false }
 # getrandom has no backend on bare metal; the final binary registers one
 custom-rng = ["alice-crypto/custom-rng"]
 alloc = ["alice-crypto/alloc"]
+# wasm32 in a JavaScript environment: the default std build, with the browser's random source
+wasm-js = ["alice-crypto/wasm-js"]
 
 # not a member of any workspace above it
 [workspace]

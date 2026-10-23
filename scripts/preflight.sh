@@ -86,7 +86,7 @@ step "ci.yml / no_std: Clippy (no_std + alloc + custom-rng, bare-metal)"
 relint
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo clippy --lib --no-default-features --features alloc,custom-rng --target thumbv7em-none-eabihf -- -D warnings )
 
-step "ci.yml / no_std: Downstream no_std crate (host, wasm32-unknown-unknown, thumbv7em)"
+step "ci.yml / no_std: Downstream no_std crate (host, wasm32-unknown-unknown with and without std, thumbv7em)"
 rustup target list --installed | grep -q '^wasm32-unknown-unknown$' || rustup target add wasm32-unknown-unknown
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; python3 scripts/no_std_consumer.py )
 python3 scripts/test_no_std_consumer.py
