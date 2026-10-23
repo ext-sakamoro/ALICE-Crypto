@@ -54,6 +54,8 @@ SECRET_TYPES = [
     "SigningKey",
     "VerifyingKey",
     "Signature",
+    "MacKey",
+    "Tag",
     "Key",
     "KeyEntry",
     "Shard",

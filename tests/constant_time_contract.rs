@@ -20,7 +20,7 @@
 //! `preflight.sh` and in CI.
 
 use alice_crypto::gf256::{batch_inv, batch_inv_stack, GF};
-use alice_crypto::signature::{sign, verify, Signature, SigningKey};
+use alice_crypto::mac::{mac, verify, MacKey, Tag};
 
 // ---------------------------------------------------------------------------
 // GF(2^8) inverse: branch-free variant vs the definition
@@ -149,16 +149,16 @@ fn batch_inv_length_checks_are_on_lengths_only() {
 }
 
 // ---------------------------------------------------------------------------
-// Signature: the comparison must not short-circuit
+// MAC tag: the comparison must not short-circuit
 // ---------------------------------------------------------------------------
 
 #[test]
-fn signature_equality_rejects_a_difference_in_any_single_byte() {
+fn tag_equality_rejects_a_difference_in_any_single_byte() {
     // derive した `==` は不一致の位置で打ち切るので、先頭が違う tag と末尾だけ
     // 違う tag を同じ扱いにできなかった 手書きの定数時間比較は両方 false
     let base = [0x5au8; 32];
-    let a = Signature::from_bytes(base);
-    assert_eq!(a, Signature::from_bytes(base), "同一 tag が等しくない");
+    let a = Tag::from_bytes(base);
+    assert_eq!(a, Tag::from_bytes(base), "同一 tag が等しくない");
 
     let mut checked = 0u32;
     for i in 0..32 {
@@ -166,7 +166,7 @@ fn signature_equality_rejects_a_difference_in_any_single_byte() {
         other[i] ^= 0x01;
         assert_ne!(
             a,
-            Signature::from_bytes(other),
+            Tag::from_bytes(other),
             "byte {i} だけ違う tag を等しいと判定した"
         );
         checked += 1;
@@ -175,19 +175,18 @@ fn signature_equality_rejects_a_difference_in_any_single_byte() {
 }
 
 #[test]
-fn verify_accepts_the_real_signature_and_rejects_single_byte_forgeries() {
-    let key = SigningKey::from_bytes([7u8; 32]);
-    let vk = key.verifying_key();
+fn verify_accepts_the_real_tag_and_rejects_single_byte_forgeries() {
+    let key = MacKey::from_bytes([7u8; 32]);
     let msg = b"timing contract";
-    let sig = sign(&key, msg);
-    assert!(verify(&vk, msg, &sig), "正しい署名が通らない");
+    let sig = mac(&key, msg);
+    assert!(verify(&key, msg, &sig), "正しい tag が通らない");
 
     let real = *sig.as_bytes();
     for i in [0usize, 1, 15, 30, 31] {
         let mut forged = real;
         forged[i] ^= 0x80;
         assert!(
-            !verify(&vk, msg, &Signature::from_bytes(forged)),
+            !verify(&key, msg, &Tag::from_bytes(forged)),
             "byte {i} を変えた偽造が通った"
         );
     }

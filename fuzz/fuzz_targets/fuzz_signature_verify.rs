@@ -1,16 +1,16 @@
-//! Fuzz target: BLAKE3-MAC sign/verify が任意 bytes で panic せず、property が成立すること
+//! Fuzz target: BLAKE3-MAC の mac / verify が任意 bytes で panic せず、property が成立すること
 //!
 //! Part of the shared ALICE-* fuzz set: one target per public entry point
 //! that parses untrusted bytes.
 //!
 //! Property:
-//! - sign(k, m) → verify(k.vk, m, sig) == true (roundtrip 常に成功)
-//! - verify(k.vk, m, arbitrary_sig) は panic せず bool を返す (differential)
-//! - verify(k.vk, tampered_m, sig) は false を返す (tamper detection)
+//! - mac(k, m) → verify(k, m, tag) == true (roundtrip 常に成功)
+//! - verify(k, m, arbitrary_tag) は panic せず bool を返す (differential)
+//! - verify(k, tampered_m, tag) は false を返す (tamper detection)
 
 #![no_main]
 
-use alice_crypto::signature::{sign, verify, Signature, SigningKey};
+use alice_crypto::mac::{mac, verify, MacKey, Tag};
 use arbitrary::Arbitrary;
 use libfuzzer_sys::fuzz_target;
 
@@ -25,19 +25,18 @@ struct Input<'a> {
 }
 
 fuzz_target!(|input: Input<'_>| {
-    let sk = SigningKey::from_bytes(input.key_bytes);
-    let vk = sk.verifying_key();
+    let key = MacKey::from_bytes(input.key_bytes);
 
     // Property 1: sign → verify roundtrip
-    let sig = sign(&sk, input.message);
+    let sig = mac(&key, input.message);
     assert!(
-        verify(&vk, input.message, &sig),
-        "sign/verify roundtrip failed"
+        verify(&key, input.message, &sig),
+        "mac/verify roundtrip failed"
     );
 
     // Property 2: arbitrary signature bytes → verify は panic せず bool
-    let arbitrary_sig = Signature::from_bytes(input.arbitrary_sig_bytes);
-    let _ = verify(&vk, input.message, &arbitrary_sig);
+    let arbitrary_sig = Tag::from_bytes(input.arbitrary_sig_bytes);
+    let _ = verify(&key, input.message, &arbitrary_sig);
 
     // Property 3: tampered message → verify() は false を返すべき
     if let Some(idx16) = input.tamper_at {
@@ -48,7 +47,7 @@ fuzz_target!(|input: Input<'_>| {
         let mut tampered = input.message.to_vec();
         tampered[idx] ^= 0x01;
         assert!(
-            !verify(&vk, &tampered, &sig),
+            !verify(&key, &tampered, &sig),
             "tamper detection failed: sig verified against altered message"
         );
     }

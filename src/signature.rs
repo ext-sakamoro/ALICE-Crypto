@@ -5,15 +5,27 @@
 //!
 //! **注意**: これは対称認証であり、公開鍵署名 (Ed25519等) ではない。
 //! 否認防止 (non-repudiation) には公開鍵署名が必要。
+//!
+//! 0.6.0 で非推奨: 中身は MAC なので [`crate::mac`] に改名した (次の破壊的な版で外す)
+
+#![allow(deprecated)]
 
 use crate::hash;
 use zeroize::Zeroize;
 
 /// 署名サイズ (バイト)。
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub const SIGNATURE_SIZE: usize = 32;
 
 /// 署名鍵 (32 バイト)。
 #[derive(Clone)]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub struct SigningKey([u8; 32]);
 
 impl SigningKey {
@@ -63,6 +75,10 @@ impl Drop for SigningKey {
 
 /// 検証鍵 (対称MACなので署名鍵と同一)。
 #[derive(Clone)]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub struct VerifyingKey([u8; 32]);
 
 impl VerifyingKey {
@@ -97,6 +113,10 @@ impl Drop for VerifyingKey {
 /// `Display` / `AsRef<[u8]>` は意図して実装しない 秘密に準じる値を `{}` で印字したり
 /// 汎用の byte 列として渡す経路を作らないため ([`Self::as_bytes`] を明示的に呼ぶ)
 #[derive(Clone)]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub struct Signature([u8; 32]);
 
 impl PartialEq for Signature {
@@ -142,6 +162,10 @@ impl core::fmt::Debug for Signature {
 
 /// メッセージに署名。
 #[must_use]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub fn sign(key: &SigningKey, message: &[u8]) -> Signature {
     let h = hash::keyed_hash(&key.0, message);
     Signature(*h.as_bytes())
@@ -151,6 +175,10 @@ pub fn sign(key: &SigningKey, message: &[u8]) -> Signature {
 ///
 /// `context || message` を署名対象とし、ドメイン分離を実現。
 #[must_use]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub fn sign_with_context(key: &SigningKey, context: &[u8], message: &[u8]) -> Signature {
     let mut input = alloc::vec::Vec::with_capacity(context.len() + message.len());
     input.extend_from_slice(context);
@@ -160,6 +188,10 @@ pub fn sign_with_context(key: &SigningKey, context: &[u8], message: &[u8]) -> Si
 
 /// 署名を検証 (定数時間比較)。
 #[must_use]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub fn verify(key: &VerifyingKey, message: &[u8], signature: &Signature) -> bool {
     let expected = hash::keyed_hash(&key.0, message);
     constant_time_eq(expected.as_bytes(), &signature.0)
@@ -167,6 +199,10 @@ pub fn verify(key: &VerifyingKey, message: &[u8], signature: &Signature) -> bool
 
 /// コンテキスト付き署名を検証。
 #[must_use]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub fn verify_with_context(
     key: &VerifyingKey,
     context: &[u8],
@@ -201,6 +237,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// 署名エラー。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[deprecated(
+    since = "0.6.0",
+    note = "this is a MAC, not a signature: use alice_crypto::mac (MacKey, Tag, mac, verify); mac_with_context length-prefixes the context, unlike sign_with_context"
+)]
 pub enum SignatureError {
     /// 署名長が不正。
     InvalidSignatureLength,

@@ -159,46 +159,88 @@ class = "key material"
 reason = "stored key bytes: no differential-privacy value"
 
 [[function]]
+file = "src/mac.rs"
+name = "from_bytes"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "from_slice"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "as_bytes"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "mac"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "mac_with_context"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "verify"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
+file = "src/mac.rs"
+name = "verify_with_context"
+class = "mac and keys"
+reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
+
+[[function]]
 file = "src/signature.rs"
 name = "from_bytes"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "as_bytes"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "from_slice"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "sign"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "sign_with_context"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "verify"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/signature.rs"
 name = "verify_with_context"
 class = "signature and keys"
-reason = "Ed25519-style signature, key and message bytes: no differential-privacy value"
+reason = "deprecated MAC names (BLAKE3 keyed hash tag), key and message bytes: no differential-privacy value"
 
 [[function]]
 file = "src/sss.rs"

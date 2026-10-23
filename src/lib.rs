@@ -38,7 +38,7 @@
 //! | [`gf256::GF::inv`] / [`div`](gf256::GF::div) | whether the argument was zero — i.e. exactly the `Option` that is returned |
 //! | [`gf256::batch_inv`] / [`batch_inv_stack`] | `inputs.len()`, plus the single "was any input zero" bit that the `Option` returns |
 //! | [`sss::split`] / [`sss::recover`] | secret length, share count, threshold (all public parameters) |
-//! | [`signature::verify`] / `verify_with_context` / `Signature as PartialEq` | message length (tag comparison is constant-time over all 32 bytes) |
+//! | [`mac::verify`] / `verify_with_context` / `mac::Tag as PartialEq` (and the deprecated `signature` aliases) | message and context length (tag comparison is constant-time over all 32 bytes) |
 //! | `hash::*` / [`kdf`] | input length, and the requested output length / iteration count |
 //! | [`stream`] encrypt / decrypt | buffer and associated-data length |
 //! | [`keystore`] lookup / revoke / purge | number of stored entries (key *ids* and timestamps are public metadata, not secrets) |
@@ -119,6 +119,7 @@ pub mod gf256;
 pub mod hash;
 pub mod kdf;
 pub mod keystore;
+pub mod mac;
 pub mod semantics;
 pub mod signature;
 pub mod sss;
@@ -144,6 +145,7 @@ pub use keystore::{
     KeyStoreProvider,
 };
 pub use semantics::CRYPTO_SEMANTICS_ID;
+#[allow(deprecated)]
 pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};
 pub use sss::{recover, split, Shard, SssError};
 pub use stream::{
