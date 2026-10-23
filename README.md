@@ -264,17 +264,19 @@ let data = open(&recovered_key, &encrypted)?;
 
 ### `SssError`
 
-Returned by `sss::split` and `sss::recover`.
+Returned by `sss::split`, `sss::recover` and `Shard::from_bytes`. It is `#[non_exhaustive]`: a `match` needs a wildcard arm.
 
 | Variant | Cause |
 |---------|-------|
 | `ThresholdTooLow` | `k < 2` |
 | `ThresholdTooHigh` | `k > n` |
 | `TooManyShards` | `n == 0` or more than 255 shards passed to `recover` |
-| `NotEnoughShards` | Empty shard slice passed to `recover` |
+| `NotEnoughShards` | Empty shard slice, or fewer shards than their threshold, passed to `recover` |
 | `EmptySecret` | Zero-length secret passed to `split` |
 | `DuplicateX` | Two shards share the same X coordinate |
 | `RandomFailed` | OS RNG unavailable |
+| `InvalidShard` | Shards passed to `recover` are not of one split (thresholds or lengths differ) |
+| `Malformed` | Bytes passed to `Shard::from_bytes` are not a shard byte form |
 
 ### `CipherError`
 
@@ -314,7 +316,9 @@ p ^= a & mask;
 | Coefficients | Stack-allocated `[GF; 255]` (zero heap in hot loop) |
 | Polynomial Eval | Horner's method (K mul instead of 2K) |
 | Lagrange Basis | Montgomery Batch Inversion (1 inv instead of K) |
-| Reconstruction | 4-way ILP unrolled dot product (SIMD-friendly) |
+| Reconstruction | 4-way ILP unrolled dot product (SIMD-friendly); the secret is returned in a buffer zeroed on drop |
+| Shard byte form | `Shard::to_bytes` / `Shard::from_bytes`, version 1: `[1][threshold][x][u32 LE length][y][first 16 bytes of BLAKE3 of the rest]` (the check catches a damaged shard; it is not authentication) |
+| Shard checks | a shard knows its threshold; `recover` refuses fewer shards than that, and shards of another split |
 
 **Performance:**
 ```
@@ -417,13 +421,14 @@ measured.
 ## Key material handling
 
 Secrets are zeroed on drop through `zeroize` (volatile writes plus a fence, so
-the stores are not optimised away as dead): `SigningKey`, `VerifyingKey`,
-`stream::Key`, `kdf::Prk`, `keystore::KeyEntry.key_data`, `sss::Shard.y`, and
+the stores are not optimised away as dead): `mac::MacKey` (and the deprecated `SigningKey` / `VerifyingKey`),
+`stream::Key`, `kdf::Prk`, `keystore::KeyEntry.key_data`, the share `y` of an `sss::Shard`, the secret
+`sss::recover` returns and the buffer `Shard::to_bytes` returns (both `Zeroizing`), and
 `dp::SecureRng` (both its key and its 64-byte keystream buffer).
 `sss::split` also clears the stack buffers that held the secret bytes and the
 random polynomial coefficients before it returns.
 
-Not zeroed, on purpose: nonces and key ids (public), and `Signature` (a MAC tag
+Not zeroed, on purpose: nonces and key ids (public), and `mac::Tag` / the deprecated `Signature` (a MAC tag
 is transmitted in the clear). Bytes a caller copies out via `as_bytes()` or a
 `pub` field are the caller's to clear.
 

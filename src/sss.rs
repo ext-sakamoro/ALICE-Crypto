@@ -8,20 +8,107 @@
 //! - Recover: Montgomery Batch Inversion, O(K) reconstruction
 
 use crate::gf256::{batch_inv, GF};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
-/// A share of the secret
+/// A share of the secret: its x coordinate (1-255), the threshold of the split it came from, and y, one byte per
+/// byte of the secret.
 ///
-/// `y` is zeroed on drop. `x` is a public coordinate and is left alone.
+/// `y` is zeroed on drop; `x` and the threshold are public. `Debug` shows x, the threshold and the length, never y.
+/// A shard is made by [`split`] or read back with [`Shard::from_bytes`]; its fields are private, so a shard always
+/// has x != 0, a threshold of at least 2 and a non-empty y.
 ///
-/// Note that `split` pre-allocates `y` with the exact capacity it needs, so the
-/// vector never reallocates and the zeroing covers every byte that was written.
-#[derive(Clone, Debug)]
+/// Note that `split` pre-allocates `y` with the exact capacity it needs, so the vector never reallocates and the
+/// zeroing covers every byte that was written.
+#[derive(Clone)]
 pub struct Shard {
-    /// X coordinate (1-255, never 0)
-    pub x: u8,
-    /// Y values for each byte of the secret
-    pub y: alloc::vec::Vec<u8>,
+    x: u8,
+    threshold: u8,
+    y: Vec<u8>,
+}
+
+/// The version byte of the shard byte form.
+pub const SHARD_FORMAT_VERSION: u8 = 1;
+
+/// Bytes before y in the shard byte form: version, threshold, x, u32 length.
+const SHARD_HEADER: usize = 7;
+/// Bytes of the check after y: the first 16 bytes of the BLAKE3 hash of everything before it.
+const SHARD_CHECK: usize = 16;
+
+impl Shard {
+    /// The x coordinate (1-255).
+    #[must_use]
+    pub const fn x(&self) -> u8 {
+        self.x
+    }
+
+    /// How many shards of this split recover the secret.
+    #[must_use]
+    pub const fn threshold(&self) -> u8 {
+        self.threshold
+    }
+
+    /// The length of the secret (and of y), in bytes.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.y.len()
+    }
+
+    /// Never true for a shard made by [`split`] or [`Shard::from_bytes`] (the secret is not empty).
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.y.is_empty()
+    }
+
+    /// The shard byte form, version 1: `[1][threshold][x][u32 little-endian length of y][y][check]`, where the
+    /// check is the first 16 bytes of the BLAKE3 hash of everything before it. The check catches a damaged or
+    /// mistyped shard; it is not authentication. The returned buffer is zeroed on drop (it holds y).
+    #[must_use]
+    pub fn to_bytes(&self) -> Zeroizing<Vec<u8>> {
+        let mut out = Zeroizing::new(Vec::with_capacity(
+            SHARD_HEADER + self.y.len() + SHARD_CHECK,
+        ));
+        out.extend_from_slice(&[SHARD_FORMAT_VERSION, self.threshold, self.x]);
+        // a shard's y is as long as the secret, and `from_bytes` refuses more than u32::MAX bytes
+        out.extend_from_slice(
+            &u32::try_from(self.y.len())
+                .unwrap_or(u32::MAX)
+                .to_le_bytes(),
+        );
+        out.extend_from_slice(&self.y);
+        let check = crate::hash::hash(&out);
+        out.extend_from_slice(&check.as_bytes()[..SHARD_CHECK]);
+        out
+    }
+
+    /// Reads a shard written by [`Shard::to_bytes`].
+    ///
+    /// # Errors
+    ///
+    /// [`SssError::Malformed`] for another version, a threshold below 2, x = 0, an empty y, a length that does not
+    /// match the bytes given, a check that does not match, or missing or trailing bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SssError> {
+        if bytes.len() < SHARD_HEADER + SHARD_CHECK {
+            return Err(SssError::Malformed);
+        }
+        let (body, check) = bytes.split_at(bytes.len() - SHARD_CHECK);
+        let (version, threshold, x) = (body[0], body[1], body[2]);
+        let len = u32::from_le_bytes([body[3], body[4], body[5], body[6]]);
+        let y = &body[SHARD_HEADER..];
+        if version != SHARD_FORMAT_VERSION
+            || threshold < 2
+            || x == 0
+            || y.is_empty()
+            || usize::try_from(len).ok() != Some(y.len())
+            || crate::hash::hash(body).as_bytes()[..SHARD_CHECK] != *check
+        {
+            return Err(SssError::Malformed);
+        }
+        Ok(Self {
+            x,
+            threshold,
+            y: y.to_vec(),
+        })
+    }
 }
 
 impl Drop for Shard {
@@ -30,17 +117,58 @@ impl Drop for Shard {
     }
 }
 
+impl core::fmt::Debug for Shard {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Shard")
+            .field("x", &self.x)
+            .field("threshold", &self.threshold)
+            .field("len", &self.y.len())
+            .finish_non_exhaustive()
+    }
+}
+
 /// Error type for SSS operations
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SssError {
+    /// The threshold is below 2.
     ThresholdTooLow,
+    /// The threshold is above the number of shards.
     ThresholdTooHigh,
+    /// No shard asked for, or more than 255 shards given.
     TooManyShards,
+    /// No shards, or fewer than their threshold.
     NotEnoughShards,
+    /// The secret is empty.
     EmptySecret,
+    /// Two shards have the same x.
     DuplicateX,
+    /// The operating system's random source is unavailable.
     RandomFailed,
+    /// The shards given are not of one split: their thresholds or lengths differ.
+    InvalidShard,
+    /// Bytes that are not a shard byte form (see [`Shard::from_bytes`]).
+    Malformed,
 }
+
+impl core::fmt::Display for SssError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::ThresholdTooLow => "the threshold is below 2",
+            Self::ThresholdTooHigh => "the threshold is above the number of shards",
+            Self::TooManyShards => "no shard asked for, or more than 255 shards given",
+            Self::NotEnoughShards => "fewer shards than the threshold",
+            Self::EmptySecret => "the secret is empty",
+            Self::DuplicateX => "two shards have the same x",
+            Self::RandomFailed => "random number generation failed",
+            Self::InvalidShard => "the shards are not of one split (thresholds or lengths differ)",
+            Self::Malformed => "not a shard byte form",
+        })
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for SssError {}
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -90,6 +218,7 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
     let mut shards: Vec<Shard> = (1..=n)
         .map(|x| Shard {
             x,
+            threshold: k,
             y: Vec::with_capacity(secret.len()),
         })
         .collect();
@@ -163,17 +292,33 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
 /// Uses Lagrange interpolation at x=0.
 /// Ultra Deep Fried: O(K² + L·K) with Montgomery Batch Inversion
 ///
+/// The shards must be of one split (the same threshold and length), at least as many as their threshold. The
+/// secret is returned in a buffer that is zeroed on drop.
+///
 /// # Errors
 ///
-/// Returns [`SssError`] if there are not enough shards or they have inconsistent lengths.
-pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
-    if shards.is_empty() {
+/// [`SssError::NotEnoughShards`] for no shards or fewer than their threshold, [`SssError::InvalidShard`] for
+/// shards whose thresholds or lengths differ, [`SssError::TooManyShards`] for more than 255,
+/// [`SssError::DuplicateX`] for two shards with the same x.
+pub fn recover(shards: &[Shard]) -> Result<Zeroizing<Vec<u8>>, SssError> {
+    let Some(first) = shards.first() else {
         return Err(SssError::NotEnoughShards);
-    }
+    };
 
     let k = shards.len();
     if k > 255 {
         return Err(SssError::TooManyShards);
+    }
+    // a shard of another split would interpolate a different polynomial (wrong bytes), and a shorter y would be
+    // read past its end
+    if shards
+        .iter()
+        .any(|s| s.threshold != first.threshold || s.y.len() != first.y.len())
+    {
+        return Err(SssError::InvalidShard);
+    }
+    if k < usize::from(first.threshold) {
+        return Err(SssError::NotEnoughShards);
     }
 
     // Check for duplicate X values O(K^2) check, tiny for K<255
@@ -227,8 +372,8 @@ pub fn recover(shards: &[Shard]) -> Result<Vec<u8>, SssError> {
     }
 
     // 4. Reconstruction Loop (The Hot Path)
-    let len = shards[0].y.len();
-    let mut secret = Vec::with_capacity(len);
+    let len = first.y.len();
+    let mut secret = Zeroizing::new(Vec::with_capacity(len));
 
     // Unroll 4 for ILP (Instruction Level Parallelism)
     for byte_idx in 0..len {
@@ -293,7 +438,7 @@ mod tests {
         // Recover with exactly K shards
         let recovered =
             recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
-        assert_eq!(&recovered, secret);
+        assert_eq!(&recovered[..], &secret[..]);
     }
 
     #[test]
@@ -306,9 +451,9 @@ mod tests {
         let r2 = recover(&[shards[2].clone(), shards[3].clone(), shards[4].clone()]).unwrap();
         let r3 = recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
 
-        assert_eq!(&r1, secret);
-        assert_eq!(&r2, secret);
-        assert_eq!(&r3, secret);
+        assert_eq!(&r1[..], &secret[..]);
+        assert_eq!(&r2[..], &secret[..]);
+        assert_eq!(&r3[..], &secret[..]);
     }
 
     #[test]
@@ -318,7 +463,7 @@ mod tests {
 
         // 4 shards should also work
         let recovered = recover(&shards[0..4]).unwrap();
-        assert_eq!(&recovered, secret);
+        assert_eq!(&recovered[..], &secret[..]);
     }
 
     #[test]
@@ -338,7 +483,7 @@ mod tests {
         let shards = split(&secret, 5, 3).unwrap();
         let recovered =
             recover(&[shards[0].clone(), shards[2].clone(), shards[4].clone()]).unwrap();
-        assert_eq!(recovered, secret);
+        assert_eq!(recovered[..], secret[..]);
     }
 
     // ── New tests ──────────────────────────────────────────────────────────
@@ -402,7 +547,7 @@ mod tests {
         let shards = split(secret, 2, 2).unwrap();
         assert_eq!(shards.len(), 2);
         let recovered = recover(&shards).unwrap();
-        assert_eq!(&recovered, secret);
+        assert_eq!(&recovered[..], &secret[..]);
     }
 
     #[test]
@@ -435,7 +580,7 @@ mod tests {
         let secret = b"all_shards";
         let shards = split(secret, 5, 3).unwrap();
         let recovered = recover(&shards).unwrap();
-        assert_eq!(&recovered, secret);
+        assert_eq!(&recovered[..], &secret[..]);
     }
 
     #[test]
@@ -452,7 +597,7 @@ mod tests {
         let secret = b"n_eq_k";
         let shards = split(secret, 3, 3).unwrap();
         let recovered = recover(&shards).unwrap();
-        assert_eq!(&recovered, secret);
+        assert_eq!(&recovered[..], &secret[..]);
     }
 
     #[test]
@@ -461,7 +606,7 @@ mod tests {
         let secret = vec![0x55u8; 1025];
         let shards = split(&secret, 3, 2).unwrap();
         let recovered = recover(&[shards[0].clone(), shards[2].clone()]).unwrap();
-        assert_eq!(recovered, secret);
+        assert_eq!(recovered[..], secret[..]);
     }
 
     #[test]

@@ -255,6 +255,18 @@ class = "secret shares"
 reason = "Shamir shares of a secret byte string: no differential-privacy value"
 
 [[function]]
+file = "src/sss.rs"
+name = "to_bytes"
+class = "secret shares"
+reason = "the byte form of one Shamir share (version, threshold, x, length, share, check): no differential-privacy value"
+
+[[function]]
+file = "src/sss.rs"
+name = "from_bytes"
+class = "secret shares"
+reason = "the byte form of one Shamir share (version, threshold, x, length, share, check): no differential-privacy value"
+
+[[function]]
 file = "src/stream.rs"
 name = "from_bytes"
 class = "ciphertext and keys"
