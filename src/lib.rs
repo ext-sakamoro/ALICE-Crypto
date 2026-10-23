@@ -112,18 +112,22 @@
 
 extern crate alloc;
 
+pub mod aes_gcm;
 pub mod chunked;
 pub mod dp;
 pub mod envelope;
 pub mod gf256;
 pub mod hash;
+pub mod hpke;
 pub mod kdf;
 pub mod keystore;
 pub mod mac;
 pub mod semantics;
+pub mod sha256;
 pub mod signature;
 pub mod sss;
 pub mod stream;
+pub mod x25519;
 
 // Re-exports
 pub use dp::{
