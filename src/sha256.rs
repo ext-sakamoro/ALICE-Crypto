@@ -2,7 +2,7 @@
 //!
 //! These are the hash and key-derivation primitives of the MLS cipher suite
 //! `MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519` (RFC 9420) and of HPKE's `HKDF-SHA256` (RFC 9180).
-//! The crate's own hash ([`crate::hash`]) is BLAKE3; SHA-256 is here only because those standards fix it.
+//! The crate's own hash ([`crate::hash()`]) is BLAKE3; SHA-256 is here only because those standards fix it.
 //!
 //! The computation is the RustCrypto `sha2` / `hmac` / `hkdf` crates; this module only gives them the
 //! crate's fixed-size, allocation-free shape.
