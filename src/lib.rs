@@ -112,6 +112,7 @@
 
 extern crate alloc;
 
+pub mod chunked;
 pub mod dp;
 pub mod envelope;
 pub mod gf256;
