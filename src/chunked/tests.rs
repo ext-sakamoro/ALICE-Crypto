@@ -182,3 +182,36 @@ fn any_error_leaves_the_sealer_and_the_opener_refusing() {
     let r = opener.open_chunk(&mut buf, size + TAG_SIZE, false);
     assert!(matches!(r, Err(ChunkedError::Failed)), "{r:?}");
 }
+
+/// A middle chunk at the second to last position, then the last chunk at the
+/// last position: both seal and open (the limit refuses only a middle chunk at
+/// the last position)
+#[test]
+fn a_middle_chunk_just_before_the_limit_and_the_last_chunk_at_it_round_trip() {
+    let size = MIN_CHUNK_SIZE as usize;
+    let (mut sealer, mut opener, _) = pair_at(u32::MAX - 1);
+    let mut middle = alloc::vec![0x11_u8; size + TAG_SIZE];
+    let n = sealer.seal_chunk(&mut middle, size, false).unwrap();
+    let mut last = alloc::vec![0u8; 64];
+    last[..4].copy_from_slice(b"tail");
+    let m = sealer.seal_chunk(&mut last, 4, true).unwrap();
+    assert_eq!(opener.open_chunk(&mut middle, n, false).unwrap(), size);
+    assert!(middle[..size].iter().all(|&b| b == 0x11));
+    assert_eq!(opener.open_chunk(&mut last, m, true).unwrap(), 4);
+    assert_eq!(&last[..4], b"tail");
+    assert!(opener.is_finished());
+}
+
+/// After the last chunk opened, the opener reports the stream as finished
+#[test]
+fn opening_after_the_last_chunk_is_finished() {
+    let (mut sealer, mut opener, _) = pair_at(0);
+    let mut buf = alloc::vec![0u8; 64];
+    buf[..3].copy_from_slice(b"end");
+    let n = sealer.seal_chunk(&mut buf, 3, true).unwrap();
+    let sealed = buf.clone();
+    assert_eq!(opener.open_chunk(&mut buf, n, true).unwrap(), 3);
+    let mut again = sealed;
+    let r = opener.open_chunk(&mut again, n, true);
+    assert!(matches!(r, Err(ChunkedError::Finished)), "{r:?}");
+}

@@ -257,3 +257,92 @@ fn the_core_refuses_chunks_of_the_wrong_length() {
         Err(ChunkedError::ChunkLength)
     ));
 }
+
+/// After a chunk fails to open, the reader hands out nothing more: every later
+/// read and `finish` return an error (no stale bytes, no panic)
+#[test]
+fn the_reader_refuses_every_read_after_a_chunk_failed_to_open() {
+    use alice_crypto::chunked::UnverifiedChunkedReader;
+    use std::io::Read;
+    let size = CHUNK as usize;
+    let mut sealed = seal(&plaintext(size + 100), CHUNK);
+    let last = sealed.len() - 1;
+    sealed[last] ^= 0x01; // the short last chunk no longer opens
+    let mut r = UnverifiedChunkedReader::new(&sealed[..], |_| Ok(key()), AAD).unwrap();
+    let mut out = vec![0u8; size];
+    assert_eq!(
+        r.read(&mut out).unwrap(),
+        size,
+        "the first full chunk opens"
+    );
+    let e = r.read(&mut out).unwrap_err();
+    assert_eq!(e.kind(), std::io::ErrorKind::InvalidData, "{e:?}");
+    for _ in 0..3 {
+        let mut probe = vec![0xEE_u8; size + TAG_SIZE];
+        let again = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| r.read(&mut probe)));
+        let again = again.expect("a read after the failure panicked");
+        assert!(
+            again.is_err(),
+            "a read after the failure returned {again:?}"
+        );
+        assert!(
+            probe.iter().all(|&b| b == 0xEE),
+            "bytes were handed out after the failure"
+        );
+    }
+    assert!(matches!(r.finish(), Err(ChunkedError::Failed)));
+}
+
+/// An I/O error from the input mid-chunk: later reads return an error instead of
+/// treating the buffer's filler as sealed bytes
+#[test]
+fn the_reader_refuses_every_read_after_an_input_error() {
+    use alice_crypto::chunked::UnverifiedChunkedReader;
+    use std::io::Read;
+    /// Gives `ok` bytes, then one error, then the rest
+    struct FailOnce<'a> {
+        data: &'a [u8],
+        at: usize,
+        fail_at: usize,
+        failed: bool,
+    }
+    impl Read for FailOnce<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            if !self.failed && self.at >= self.fail_at {
+                self.failed = true;
+                return Err(std::io::Error::other("injected"));
+            }
+            let end = if self.failed {
+                self.data.len()
+            } else {
+                self.fail_at
+            };
+            let n = buf.len().min(end - self.at);
+            buf[..n].copy_from_slice(&self.data[self.at..self.at + n]);
+            self.at += n;
+            Ok(n)
+        }
+    }
+    let size = CHUNK as usize;
+    let sealed = seal(&plaintext(3 * size), CHUNK);
+    let input = FailOnce {
+        data: &sealed,
+        at: 0,
+        fail_at: HEADER_SIZE + 100,
+        failed: false,
+    };
+    let mut r = UnverifiedChunkedReader::new(input, |_| Ok(key()), AAD).unwrap();
+    let mut out = vec![0u8; size];
+    let e = r.read(&mut out).unwrap_err();
+    assert_eq!(e.to_string().contains("injected"), true, "{e}");
+    for _ in 0..2 {
+        let mut probe = vec![0xEE_u8; size];
+        let again = r.read(&mut probe);
+        assert!(
+            again.is_err(),
+            "a read after the input error returned {again:?}"
+        );
+        assert!(probe.iter().all(|&b| b == 0xEE));
+    }
+    assert!(matches!(r.finish(), Err(ChunkedError::Failed)));
+}
