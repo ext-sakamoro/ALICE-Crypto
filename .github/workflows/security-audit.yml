@@ -261,7 +261,6 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -272,9 +271,20 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
 
+      # informational (the lib tests gate in ci.yml): the step's failure becomes a warning below;
+      # pipefail so a failing cargo llvm-cov is a failing step, not hidden behind tee
       - name: Run coverage
+        id: coverage
+        continue-on-error: true
+        shell: bash
         run: |
+          set -o pipefail
           cargo llvm-cov --lib --summary-only 2>&1 | tee coverage-summary.txt
+      # informational: the job still succeeds (the gate needs every job to succeed), the failure
+      # is reported as a warning annotation instead of being hidden
+      - name: Report a failed coverage run
+        if: steps.coverage.outcome == 'failure'
+        run: echo "::warning title=coverage::cargo llvm-cov --lib failed; see the Run coverage step and coverage-summary.txt"
 
       - name: Upload coverage summary as artifact
         uses: actions/upload-artifact@v6
