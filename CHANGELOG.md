@@ -49,6 +49,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- Licence: from `AGPL-3.0-or-later OR LicenseRef-Commercial` to `LicenseRef-Proprietary` from this version (the source stays published for reading; using it needs a written agreement); published versions keep their licence
 - AEAD の失敗の型を `aead::AeadError` の 1 つにした `aes_gcm::AeadError` と `chacha20poly1305_ietf::AeadError` はそれを再公開する (path も variant も同じ) 表示は「AEAD authentication failed」になる (以前の aes_gcm は「AES-128-GCM authentication failed」)
 - CI: 試験 `scripts/test_changed_paths.py` の fixture の repository は自動の gc と maintenance を止める (`gc.auto 0` / `gc.autoDetach false` / `maintenance.auto false`、設定を固定する試験を足した) 切り離された gc が後片付けの最中に `.git` へ書き、一時 dir の削除が `Directory not empty` で落ちることがあった この file は他の crate と共有するので ALICE-Law の表の target をこの bytes にした版 (185d38d) に `.github/shared-files-pin` を移した
 - 版を 0.6.0 に上げた (crates.io には公開しない) 破壊的な変更: `sss::Shard` の field の private 化と `recover` の戻り値、`SssError` / `DpError` / `KeyStoreError` の `#[non_exhaustive]` 非推奨: `signature` module (`mac` へ) `CRYPTO_SEMANTICS_CHECKED_AT` を ("0.6.0", "1.98.1") にした (DP の pin と `CRYPTO_SEMANTICS_ID` は変わらない)

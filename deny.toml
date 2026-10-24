@@ -7,7 +7,7 @@
 # whichever job runs second.
 # ALICE-SDF v1.7.7 (commit 52d26f9) の deny.toml を base に ALICE-Crypto 用に調整
 #
-# ALICE-Crypto 自体は AGPL-3.0、target crate として license exception で自己許可
+# ALICE-Crypto 自体は LicenseRef-Proprietary (publish = false なので [licenses.private] で除外)
 # sibling path dep はゼロ、alice-stubs action は no-op (stub 生成不要)
 
 [graph]
@@ -66,6 +66,11 @@ allow = [
     "CDLA-Permissive-2.0",
 ]
 
+# this crate is publish = false and LicenseRef-Proprietary: unpublished
+# workspace crates are not checked against the allow list
+[licenses.private]
+ignore = true
+
 [[licenses.clarify]]
 name = "ring"
 version = "*"
@@ -77,14 +82,6 @@ name = "webpki"
 version = "*"
 expression = "ISC"
 license-files = [{ path = "LICENSE", hash = 0x001c7e6c }]
-
-# ALICE-Crypto 自身 (target crate) が AGPL-3.0 だが cargo-deny は target も
-# license check 対象にするため exception で自己許可
-# (target-side form: a target-specific advisory still has to be listed here,
-#  not only in the host policy)
-[[licenses.exceptions]]
-name = "alice-crypto"
-allow = ["AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later"]
 
 # ---------------------------------------------------------------------------
 # Bans (banned crate / duplicate / wildcard)
