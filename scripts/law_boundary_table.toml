@@ -466,6 +466,24 @@ reason = "a SHA-256 digest of the input bytes: no differential-privacy value"
 
 [[function]]
 file = "src/sha256.rs"
+name = "update"
+class = "hash input"
+reason = "the next part of the bytes a SHA-256 digest is taken over: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "finalize"
+class = "hash output"
+reason = "the SHA-256 digest of the bytes fed so far: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
+name = "finalize_reset"
+class = "hash output"
+reason = "the SHA-256 digest of the bytes fed so far, before the hasher starts over: no differential-privacy value"
+
+[[function]]
+file = "src/sha256.rs"
 name = "hmac"
 class = "hash output and keys"
 reason = "an HMAC-SHA256 tag, its key and message: no differential-privacy value"
