@@ -18,20 +18,6 @@ on:
     # with merge-base(origin/main) instead (patterns: .github/paths/security-audit.txt)
     # `ci/**` runs the same checks on a branch before it is fast-forwarded onto main
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'src/**'
-      - 'deny.toml'
-      - 'scripts/constant_time_guard.py'
-      - 'scripts/test_constant_time_guard.py'
-      - 'scripts/constant-time-baseline.txt'
-      - '.github/workflows/security-audit.yml'
-      - '.github/actions/**'
-      - 'scripts/changed_paths.py'
-      - '.github/paths/security-audit.txt'
   schedule:
     # 毎週月曜 09:00 UTC = 18:00 JST
     - cron: '0 9 * * 1'
