@@ -303,8 +303,14 @@ def gate(needs_json: str) -> tuple[bool, str]:
 
 # --- sync: the trigger lint -------------------------------------------------------------
 
+def key_lines(text: str) -> list[str]:
+    """the lines of a workflow without its comment-only lines: a comment is never a key, so at any
+    indentation (column 0 included) it must not end the `on` / `jobs` block or a block inside them"""
+    return [l for l in text.splitlines() if not l.lstrip().startswith("#")]
+
+
 def on_block(text: str) -> list[str]:
-    lines = text.splitlines()
+    lines = key_lines(text)
     try:
         start = next(i for i, l in enumerate(lines) if re.match(r"^(on|\"on\"|'on'):\s*$", l))
     except StopIteration:
@@ -361,7 +367,7 @@ def push_branches(push: list[str]) -> list[str] | None:
 
 def jobs_needs(text: str) -> dict[str, tuple[list[str], bool]]:
     """job id -> (its `needs`, whether it runs `changed_paths.py gate`), from the `jobs:` block"""
-    lines = text.splitlines()
+    lines = key_lines(text)
     try:
         start = next(i for i, l in enumerate(lines) if re.match(r"^jobs:\s*$", l))
     except StopIteration:
