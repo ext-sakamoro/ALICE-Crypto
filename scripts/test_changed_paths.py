@@ -579,6 +579,50 @@ class Sync(unittest.TestCase):
         self.assertEqual(cp.sync(root)[1], 0)
         self.assertEqual(cp.main(["sync", str(root)]), 1)
 
+    # a YAML comment is not a key: at any indentation (column 0 included) it ends no block, so a
+    # job, a push filter or a pull_request path written after it is still read
+
+    UNGATED = "  late:\n    runs-on: x\n    steps:\n      - run: true\n"
+
+    def test_a_job_after_a_comment_is_still_gate_covered(self):
+        for comment in ("# a note\n", "  # a note\n", "      # a note\n"):
+            with self.subTest(comment=comment):
+                wf = WF_OK + comment + self.UNGATED
+                errs, _ = cp.sync(self.tree(wf))
+                self.assertTrue(any("does not need ['late']" in e for e in errs), errs)
+
+    def test_a_comment_inside_a_job_hides_no_later_job(self):
+        wf = WF_OK.replace("  heavy:\n    needs: changes\n",
+                           "  heavy:\n# a note\n    needs: changes\n") + self.UNGATED
+        errs, _ = cp.sync(self.tree(wf))
+        self.assertTrue(any("does not need ['late']" in e for e in errs), errs)
+
+    def test_push_paths_after_a_comment_fail(self):
+        for comment in ("# a note\n", "  # a note\n", "    # a note\n"):
+            with self.subTest(comment=comment):
+                wf = WF_OK.replace("    branches: [main, 'ci/**']\n",
+                                   f"    branches: [main, 'ci/**']\n{comment}    paths:\n      - 'src/**'\n")
+                errs, _ = cp.sync(self.tree(wf))
+                self.assertTrue(any("on.push has `paths`" in e for e in errs), errs)
+
+    def test_a_push_block_after_a_comment_is_read(self):
+        wf = WF_OK.replace("on:\n  push:\n", "on:\n# a note\n  push:\n").replace(
+            "    branches: [main, 'ci/**']\n", "    branches: [main, 'ci/**']\n    paths:\n      - 'src/**'\n")
+        errs, _ = cp.sync(self.tree(wf))
+        self.assertTrue(any("on.push has `paths`" in e for e in errs), errs)
+
+    def test_pull_request_paths_after_a_comment_are_compared(self):
+        wf = WF_OK.replace("      - '**/src/**'\n", "      - '**/src/**'\n# a note\n      - 'fuzz/**'\n")
+        # every item read: equal to a file that lists fuzz/** too, different from one that does not
+        self.assertEqual(cp.sync(self.tree(wf, "**/src/**\nfuzz/**\n.github/paths/x.txt\n")), ([], 1))
+        errs, _ = cp.sync(self.tree(wf))
+        self.assertTrue(any("differ" in e for e in errs), errs)
+
+    def test_comments_everywhere_in_a_synced_workflow_pass(self):
+        wf = "\n".join(l + ("\n# c\n  # c" if l.strip() and not l.startswith("      - run") else "")
+                       for l in WF_OK.split("\n"))
+        self.assertEqual(cp.sync(self.tree(wf)), ([], 1), wf)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)
