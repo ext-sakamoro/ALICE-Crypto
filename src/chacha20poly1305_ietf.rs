@@ -67,21 +67,4 @@ pub fn open(
         .map_err(|_| AeadError::Authentication)
 }
 
-/// Why a ChaCha20-Poly1305 ciphertext was refused.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AeadError {
-    /// The tag does not verify; the ciphertext is not opened.
-    Authentication,
-}
-
-impl core::fmt::Display for AeadError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Authentication => f.write_str("ChaCha20-Poly1305 authentication failed"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for AeadError {}
+pub use crate::aead::AeadError;

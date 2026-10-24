@@ -112,6 +112,7 @@
 
 extern crate alloc;
 
+pub mod aead;
 pub mod aes_gcm;
 pub mod chacha20poly1305_ietf;
 pub mod chunked;

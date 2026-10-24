@@ -156,5 +156,5 @@ fn both_aeads_report_one_error_type() {
     let nonce = [0u8; 12];
     let a = open(&key, &nonce, b"", &[0u8; 16]);
     let b = alice_crypto::aes_gcm::open(&gcm_key, &nonce, b"", &[0u8; 16]);
-    assert_eq!(a.map_err(|e| e), b.map(|_| Vec::new()));
+    assert_eq!(a, b.map(|_| Vec::new()));
 }

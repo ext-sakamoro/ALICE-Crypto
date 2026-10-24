@@ -64,21 +64,4 @@ pub fn open(
         .map_err(|_| AeadError::Authentication)
 }
 
-/// Why an AES-128-GCM ciphertext was refused.
-#[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AeadError {
-    /// The tag does not verify; the ciphertext is not opened.
-    Authentication,
-}
-
-impl core::fmt::Display for AeadError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Authentication => f.write_str("AES-128-GCM authentication failed"),
-        }
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for AeadError {}
+pub use crate::aead::AeadError;
