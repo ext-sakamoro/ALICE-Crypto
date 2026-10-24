@@ -618,6 +618,36 @@ class Sync(unittest.TestCase):
         errs, _ = cp.sync(self.tree(wf))
         self.assertTrue(any("differ" in e for e in errs), errs)
 
+    # a key is a key in either YAML style: a flow-style value (`paths: [...]`) is read like a block
+    # list, and a form this lint cannot read fails instead of passing
+
+    def test_flow_style_push_paths_fail(self):
+        for key, val in (("paths", '["src/**"]'), ("paths", "['src/**', 'fuzz/**']"), ("paths-ignore", "[a]")):
+            with self.subTest(key=key, val=val):
+                wf = WF_OK.replace("    branches: [main, 'ci/**']\n",
+                                   f"    branches: [main, 'ci/**']\n    {key}: {val}\n")
+                errs, _ = cp.sync(self.tree(wf))
+                self.assertTrue(any(f"on.push has `{key}`" in e for e in errs), errs)
+
+    def test_flow_style_push_paths_on_main_only_pass(self):
+        wf = WF_OK.replace("    branches: [main, 'ci/**']\n", "    branches: [main]\n    paths: ['src/**']\n")
+        self.assertEqual(cp.sync(self.tree(wf)), ([], 1))
+
+    def test_flow_style_pull_request_paths_are_compared(self):
+        flow = "    paths: ['**/src/**', '.github/paths/x.txt']\n"
+        block = "    paths:\n      - '**/src/**'\n      - '.github/paths/x.txt'\n"
+        self.assertEqual(cp.sync(self.tree(WF_OK.replace(block, flow))), ([], 1))
+        errs, _ = cp.sync(self.tree(WF_OK.replace(block, "    paths: ['**/src/**', 'fuzz/**', '.github/paths/x.txt']\n")))
+        self.assertTrue(any("differ" in e for e in errs), errs)
+
+    def test_an_unreadable_trigger_form_fails(self):
+        for push in ("  push: {branches: [main, 'ci/**'], paths: [src]}\n",
+                     "  push:\n    branches: [main, 'ci/**']\n    paths: src/**\n"):
+            with self.subTest(push=push):
+                wf = WF_OK.replace("  push:\n    branches: [main, 'ci/**']\n", push)
+                errs, _ = cp.sync(self.tree(wf))
+                self.assertTrue(errs, push)
+
     def test_comments_everywhere_in_a_synced_workflow_pass(self):
         wf = "\n".join(l + ("\n# c\n  # c" if l.strip() and not l.startswith("      - run") else "")
                        for l in WF_OK.split("\n"))
