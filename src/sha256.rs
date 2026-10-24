@@ -22,6 +22,44 @@ pub fn digest(data: &[u8]) -> [u8; DIGEST_SIZE] {
     Sha256::digest(data).into()
 }
 
+/// Incremental SHA-256, for input read in parts (a file streamed from disk or the network).
+///
+/// Feeding the parts of a message in order gives the same digest as [`digest`] of the whole.
+/// [`Hasher::finalize`] reads the state without consuming it, so more input can follow.
+#[derive(Clone, Default)]
+pub struct Hasher(Sha256);
+
+impl Hasher {
+    /// A hasher that has seen no input.
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Sha256::new())
+    }
+
+    /// Feeds the next part of the message.
+    pub fn update(&mut self, data: &[u8]) {
+        self.0.update(data);
+    }
+
+    /// The SHA-256 of everything fed so far.
+    #[must_use]
+    pub fn finalize(&self) -> [u8; DIGEST_SIZE] {
+        self.0.clone().finalize().into()
+    }
+
+    /// Forgets all input, as if newly made.
+    pub fn reset(&mut self) {
+        self.0 = Sha256::new();
+    }
+}
+
+impl core::fmt::Debug for Hasher {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // the state is derived from the input, which may be secret
+        f.write_str("sha256::Hasher")
+    }
+}
+
 /// HMAC-SHA256 of `data` under `key` (any length; RFC 2104 hashes a key longer than the block).
 #[must_use]
 pub fn hmac(key: &[u8], data: &[u8]) -> [u8; DIGEST_SIZE] {
