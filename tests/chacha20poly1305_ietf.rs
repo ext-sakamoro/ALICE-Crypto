@@ -145,9 +145,16 @@ fn input_shorter_than_a_tag_is_refused_and_an_empty_message_round_trips() {
 }
 
 #[test]
-fn the_error_names_the_algorithm() {
-    assert_eq!(
-        AeadError::Authentication.to_string(),
-        "ChaCha20-Poly1305 authentication failed"
-    );
+fn both_aeads_report_one_error_type() {
+    // the crate has one AEAD failure type; each AEAD module re-exports it
+    let e: alice_crypto::aead::AeadError = AeadError::Authentication;
+    let same: alice_crypto::aes_gcm::AeadError = e;
+    assert_eq!(same, alice_crypto::aead::AeadError::Authentication);
+    assert_eq!(e.to_string(), "AEAD authentication failed");
+    let key = [0u8; 32];
+    let gcm_key = [0u8; 16];
+    let nonce = [0u8; 12];
+    let a = open(&key, &nonce, b"", &[0u8; 16]);
+    let b = alice_crypto::aes_gcm::open(&gcm_key, &nonce, b"", &[0u8; 16]);
+    assert_eq!(a.map_err(|e| e), b.map(|_| Vec::new()));
 }
