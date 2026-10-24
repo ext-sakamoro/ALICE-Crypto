@@ -58,4 +58,4 @@ Use English, imperative mood. No auto-signatures.
 
 ## License
 
-AGPL-3.0. Copyright (c) 2026 Moroya Sakamoto.
+LicenseRef-Proprietary (see LICENSE-Proprietary). Copyright (c) 2026 Moroya Sakamoto.
