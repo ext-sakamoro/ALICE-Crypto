@@ -324,6 +324,9 @@ class FormError(ValueError):
     pass
 
 
+# what PyYAML's reader refuses, and the line breaks it reads besides LF / CRLF (refused here)
+NON_PRINTABLE = re.compile("[^\x09\x0A\x0D\x20-\x7E\x85\xA0-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF]")
+OTHER_BREAKS = re.compile("[\r\x85\u2028\u2029]")
 NULLS = {"", "~", "null", "Null", "NULL"}
 BOOLS = {**{w: True for w in "yes Yes YES true True TRUE on On ON".split()},
          **{w: False for w in "no No NO false False FALSE off Off OFF".split()}}
@@ -414,8 +417,10 @@ def scalar(s: str, where: str):
         return v
     if c in "[{":
         return Flow(s, where).whole()
-    if c in "&*!%@`|>":
+    if c in "&*!%@`|>]},":
         raise FormError(f"{where}: `{c}` starts a form this reader does not read")
+    if re.match(r"[-?:](?:[ \t]|$)", s):
+        raise FormError(f"{where}: `{s[0]} ` starts a form this reader does not read")
     v = strip_comment(s)
     if re.search(r":(?:[ \t]|$)", v):
         raise FormError(f"{where}: `: ` inside a plain scalar")
@@ -447,6 +452,10 @@ class Flow:
             return v
         if c in "&*!%@`|>?#":
             raise FormError(f"{self.where}: `{c}` in a flow collection")
+        if c == "-" and self.s[self.i + 1:self.i + 2] in ("", " ", "\t", ",", "]", "}"):
+            raise FormError(f"{self.where}: `-` as an indicator in a flow collection")
+        if c == ":":
+            raise FormError(f"{self.where}: a flow scalar that starts with `:`")
         # a plain scalar ends at `,` `[` `]` `{` `}` or at `: ` / `:` before a flow indicator
         j = self.i
         while j < len(self.s):
@@ -457,6 +466,8 @@ class Flow:
                 break
             if d == "#" and self.s[j - 1] in " \t":
                 raise FormError(f"{self.where}: a comment inside a flow collection")
+            if d == "?":
+                raise FormError(f"{self.where}: `?` inside a flow collection")
             j += 1
         v = self.s[self.i:j].strip()
         self.i = j
@@ -526,14 +537,20 @@ class Flow:
 
 class Reader:
     def __init__(self, text: str):
+        # a byte order mark at the start is not content (PyYAML drops it too)
+        if text.startswith("\ufeff"):
+            text = text[1:]
         # a CRLF checkout (Windows) is the same file: YAML reads CRLF as one line break
         text = text.replace("\r\n", "\n")
-        if "\r" in text:
-            raise FormError("a carriage return that does not end a line")
-        if "\t" in "".join(re.match(r"[ \t]*", l).group(0) for l in text.split("\n")):
-            raise FormError("a tab in the indentation")
+        m = NON_PRINTABLE.search(text)
+        if m:
+            raise FormError(f"the character U+{ord(m.group(0)):04X}, which YAML does not allow")
+        m = OTHER_BREAKS.search(text)
+        if m:
+            raise FormError(f"the line break U+{ord(m.group(0)):04X}, which this reader does not read")
         self.lines = text.split("\n")
-        if self.lines and self.lines[-1] == "":
+        self.final_break = bool(self.lines) and self.lines[-1] == ""
+        if self.final_break:
             self.lines.pop()
 
     @staticmethod
@@ -543,6 +560,8 @@ class Reader:
 
     def next_content(self, i: int) -> int:
         while i < len(self.lines) and self.blank(self.lines[i]):
+            if "\t" in self.lines[i]:
+                raise FormError(f"line {i + 1}: a tab outside a block scalar")
             i += 1
         return i
 
@@ -567,6 +586,8 @@ class Reader:
     def block(self, i: int, n: int, first: str | None = None):
         """the block node whose first line is i at indent n (`first`: that line's text when it
         follows a `- ` on the same line)"""
+        if "\t" in self.lines[i]:
+            raise FormError(f"line {i + 1}: a tab outside a block scalar")
         text = first if first is not None else self.lines[i][n:]
         if text == "-" or text.startswith("- "):
             return self.seq(i, n, first)
@@ -575,6 +596,8 @@ class Reader:
     def seq(self, i: int, n: int, first: str | None):
         out = []
         while True:
+            if "\t" in self.lines[i]:
+                raise FormError(f"line {i + 1}: a tab outside a block scalar")
             text = first if first is not None else self.lines[i][n:]
             first = None
             if not (text == "-" or text.startswith("- ")):
@@ -603,7 +626,7 @@ class Reader:
             raise FormError(f"line {i + 1}: an indentation this reader does not read")
         return out, i
 
-    KEY = re.compile(r"""(?:'(?:[^']|'')*'|"(?:[^"\\]|\\.)*"|[^\s'"#\[\]{},&*!|>%@`?][^#]*?):(?:[ \t]|$)""")
+    KEY = re.compile(r"""('(?:[^']|'')*'|"(?:[^"\\]|\\.)*"|[^\s'"#\[\]{},&*!|>%@`?:][^#]*?):(?:[ \t]|$)""")
 
     def is_key(self, text: str) -> bool:
         return bool(self.KEY.match(text))
@@ -612,8 +635,7 @@ class Reader:
         m = self.KEY.match(text)
         if not m:
             raise FormError(f"{where}: a line that is not `key: value` ({text.strip()[:40]!r})")
-        raw = m.group(0)[:-1].rstrip(":").rstrip() if m.group(0).endswith((" ", "\t")) else m.group(0)[:-1]
-        raw = raw.rstrip()
+        raw = m.group(1).rstrip()
         if raw[0] in "'\"":
             k, rest = quoted(raw, where)
             if rest.strip():
@@ -625,6 +647,8 @@ class Reader:
     def mapping(self, i: int, n: int, first: str | None):
         out: dict = {}
         while True:
+            if "\t" in self.lines[i]:
+                raise FormError(f"line {i + 1}: a tab outside a block scalar")
             text = first if first is not None else self.lines[i][n:]
             first = None
             where = f"line {i + 1}"
@@ -676,6 +700,8 @@ class Reader:
             l = self.lines[j]
             if l.strip() and self.indent(l) <= n:
                 break
+            if not l.strip() and "\t" in l:
+                raise FormError(f"line {j + 1}: a tab on a blank line of a block scalar")
             lines.append(l)
             j += 1
         # trailing lines that are only spaces belong to the scalar's trailing breaks
@@ -685,6 +711,11 @@ class Reader:
         base = self.indent(content[0])
         if base <= n:
             raise FormError(f"{where}: a block scalar without indented content")
+        for l in lines:
+            if l.strip():
+                break
+            if len(l) > base:
+                raise FormError(f"{where}: a leading blank line longer than the block scalar's indentation")
         body = []
         for l in lines:
             if l.strip() and self.indent(l) < base:
@@ -698,8 +729,6 @@ class Reader:
         while k and body[k - 1] == "":
             k -= 1
         main, trail = body[:k], body[k:]
-        if any(x.strip() == "" and x for x in main):
-            pass
         if style == "|":
             text = "\n".join(main)
         else:
@@ -723,11 +752,14 @@ class Reader:
                     text += " " + x
                 empties = 0
                 prev_more = more
+        # the line breaks after the last content line (none after a last line that ends the file
+        # without one)
+        breaks = len(trail) + (0 if j == len(self.lines) and not self.final_break else 1)
         if chomp == "-":
             return text, j
         if chomp == "+":
-            return text + "\n" + "\n" * len(trail), j
-        return text + "\n", j
+            return text + "\n" * breaks, j
+        return text + ("\n" if breaks else ""), j
 
 
 def load_yaml(text: str):
