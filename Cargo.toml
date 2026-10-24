@@ -2,7 +2,7 @@
 name = "alice-crypto"
 version = "0.6.0"
 edition = "2021"
-authors = ["Moroya Sakamoto <sakamoro@alicelaw.net>"]
+authors = ["Moroya Sakamoto"]
 description = "Information-theoretic security primitives for ALICE"
 license = "LicenseRef-Proprietary"
 publish = false
