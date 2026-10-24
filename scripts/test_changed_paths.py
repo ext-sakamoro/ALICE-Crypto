@@ -720,6 +720,14 @@ class Reader(unittest.TestCase):
          {'a': 1}),
         ('expressions', "if: ${{ github.event_name == 'push' }}\nx: ${{ matrix.os }}\n",
          {'if': "${{ github.event_name == 'push' }}", 'x': '${{ matrix.os }}'}),
+        ('a leading byte order mark is not content', '\ufeffon:\n  push:\n    paths: [src]\n',
+         {True: {'push': {'paths': ['src']}}}),
+        ('a block scalar that ends the file without a line break', 'n: |\n i',
+         {'n': 'i'}),
+        ('a kept block scalar that ends the file without a line break', 'n: |+\n i',
+         {'n': 'i'}),
+        ('a key that ends with a colon', 's:: 1\n',
+         {'s:': 1}),
     ]
 
     REFUSE = [  # valid YAML outside the subset (PyYAML reads each one)
@@ -739,6 +747,9 @@ class Reader(unittest.TestCase):
         ('an inf float', 'a: .inf\n'),
         ('a timestamp', 'a: 2026-10-24\n'),
         ('a tab in the indentation', 'a:\n\tb: 1\n'),
+        ('a NEL line break', 'a: [x] # c\x85b: 1\n'),
+        ('a line separator', 'on:\n  push:\n    branches: [x] # c\u2028    paths: [src]\n'),
+        ('a paragraph separator', 'a: 1\u2029b: 2\n'),
     ]
 
     INVALID = [  # not YAML (PyYAML rejects each one)
@@ -750,6 +761,20 @@ class Reader(unittest.TestCase):
         ('a key after a top-level sequence', '- a\nb: 1\n'),
         ('two documents', 'a: 1\n---\nb: 2\n'),
         ('a column-0 comment inside a literal block', 'a: |\n  x\n# c\n  y\n'),
+        ('a tab after the colon', 'a:\tb\n'),
+        ('a tab after the colon on a later line', 'a: 1\nb:\tc\n'),
+        ('a tab after a later sequence dash', 'a:\n  - 1\n  -\tx\n'),
+        ('a block sequence entry inside a flow sequence', 'a: [x, - y]\n'),
+        ('a leading blank line longer than the block scalar', 'a: |\n     \n  x\n'),
+        ('a control character', 'a: x\x07y\n'),
+        ('a NUL character', 'a: x\x00y\n'),
+        ('a key that starts with a colon', 's:\n: :\n'),
+        ('a value that starts with a closing brace', 'p: }\n'),
+        ('a value that starts with a closing bracket', 's: ]\n'),
+        ('a value that is a comma', 'l: ,\n'),
+        ('a tab on a blank line of a block scalar', 'n: |\n\t\n'),
+        ('a question mark inside a flow scalar', 's: [c?]\n'),
+        ('a flow scalar that starts with a colon', 's: [n,:"]\n'),
     ]
 
     def test_reads_the_tree_yaml_builds(self):
@@ -775,6 +800,16 @@ class Reader(unittest.TestCase):
                 self.assertEqual(cp.load_yaml(src.replace("\n", "\r\n")), want)
         with self.assertRaises(cp.FormError):
             cp.load_yaml("a: 1\rb: 2\n")
+
+    def test_sync_reads_a_workflow_with_a_byte_order_mark(self):
+        # the BOM is not part of the first key: `on` is still the trigger block
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / ".github" / "workflows").mkdir(parents=True)
+            (root / ".github" / "workflows" / "x.yml").write_text(
+                "\ufeffon:\n  " + "pu" + "sh:\n    paths: [src]\n", encoding="utf-8")
+            errs, _ = cp.sync(root)
+            self.assertTrue(any("has `paths`" in e for e in errs), errs)
 
     def test_sync_reports_a_workflow_outside_the_subset(self):
         with tempfile.TemporaryDirectory() as d:

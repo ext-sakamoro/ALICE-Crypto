@@ -94,7 +94,7 @@ jobs:
             git -C "$RUNNER_TEMP/corpus/$r" sparse-checkout set .github/workflows
           done < "$RUNNER_TEMP/repos.txt"
       - name: Compare
-        run: python scripts/changed_paths_yaml_oracle.py . "$RUNNER_TEMP"/corpus/*
+        run: python scripts/changed_paths_yaml_oracle.py --fuzz 5000 . "$RUNNER_TEMP"/corpus/*
 
   # red when the changes job said run and a job was skipped, cancelled or failed
   gate:
