@@ -22,19 +22,6 @@ on:
     # with merge-base(origin/main) instead (patterns: .github/paths/semver-checks.txt)
     # ci/**: the same checks on a branch before it is fast-forwarded to main
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'rust-toolchain.toml'
-      - 'scripts/semver_gate.py'
-      - 'scripts/test_semver_gate.py'
-      - '.github/semver-gate.toml'
-      - '.github/workflows/semver-checks.yml'
-      - 'scripts/changed_paths.py'
-      - '.github/paths/semver-checks.txt'
   schedule:
     # every Monday 11:00 UTC (two hours after security-audit.yml)
     - cron: '0 11 * * 1'

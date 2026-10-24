@@ -12,14 +12,6 @@ on:
     # diff from GitHub's filter and the run is skipped; the changes job below compares
     # with merge-base(origin/main) instead (patterns: .github/paths/changed-paths-oracle.txt)
     branches: [main, 'ci/**']
-  pull_request:
-    branches: [main]
-    paths:
-      - 'scripts/changed_paths.py'
-      - 'scripts/test_changed_paths.py'
-      - 'scripts/changed_paths_yaml_oracle.py'
-      - '.github/workflows/changed-paths-oracle.yml'
-      - '.github/paths/changed-paths-oracle.txt'
   schedule:
     - cron: '41 4 * * 3'
   workflow_dispatch:
