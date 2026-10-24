@@ -162,20 +162,23 @@ def main(roots: list[str], fuzz_n: int = 0) -> int:
         except yaml.YAMLError:
             pass
 
+    fbad: list[str] = []
     if fuzz_n:
         fbad, fstats = fuzz([f.read_text(encoding="utf-8") for f in files], fuzz_n)
-        bad += fbad[:20]
         print(f"fuzz: {fuzz_n} mutants, {fstats}, {len(fbad)} failure(s)")
         if fstats["equal"] == 0:
             bad.append("fuzz: no mutant compared equal (compared nothing)")
-    for b in bad:
+    for b in bad + fbad[:20]:
         print(f"FAIL: {b}")
+    if len(fbad) > 20:
+        print(f"(the first 20 of {len(fbad)} fuzz failures are listed)")
+    total = len(bad) + len(fbad)
     print(f"compared: workflow files {len(files)}, equal {equal}, refused {refused}, not YAML {not_yaml}, "
-          f"test cases {cases}, {len(bad)} failure(s)")
+          f"test cases {cases}, {total} failure(s)")
     if equal == 0:
         print("FAIL: no workflow file compared equal (compared nothing)")
         return 1
-    return 1 if bad else 0
+    return 1 if total else 0
 
 
 if __name__ == "__main__":
