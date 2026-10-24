@@ -85,7 +85,7 @@ class Repo:
 
 def args(repo_: Repo | None, **kw) -> SimpleNamespace:
     base = dict(event="push", before="", after="", created="false", forced="false", base="",
-                head="", patterns_file="", pattern=list(PATTERNS), main_ref="origin/main",
+                head="", patterns_file="", pattern=list(PATTERNS), main_ref="origin/main", ref="",
                 repo=str(repo_.path) if repo_ else ".")
     base.update(kw)
     return SimpleNamespace(**base)
@@ -141,6 +141,27 @@ class PushCases(unittest.TestCase):
             self.assertTrue(d.run, d.reason)
             self.assertEqual(d.files, ["docs/a.md", "fuzz/fuzz_targets/a.rs"])
             self.assertEqual(d.matched, ["fuzz/fuzz_targets/a.rs"])
+
+    # 3b: on a ci/** branch every push is compared with merge-base(main): an earlier push on the
+    # branch touched a matching path, the latest touched only other paths, and the workflow
+    # still runs (the branch is checked as a whole before it lands)
+    def test_a_follow_up_push_to_a_ci_branch_compares_with_main(self):
+        c1 = self.branch_commit({"alice-lol/src/lib.rs": "b\n"}, "ci/x")
+        c2 = self.r.commit({"README.md": "only docs\n"})
+        d = cp.decide(args(self.r, before=c1, after=c2, ref="refs/heads/ci/x"))
+        self.assertTrue(d.run, d.reason)
+        self.assertEqual(d.files, ["README.md", "alice-lol/src/lib.rs"])
+        self.assertEqual(d.matched, ["alice-lol/src/lib.rs"])
+        self.assertIn(f"merge-base(origin/main)..after = {self.m0}..{c2}", d.reason)
+
+    # 3c: the same pushes to another branch keep before..after (main, work/**, no ref given)
+    def test_a_follow_up_push_to_another_branch_keeps_before_after(self):
+        c1 = self.branch_commit({"alice-lol/src/lib.rs": "b\n"}, "work/x")
+        c2 = self.r.commit({"README.md": "only docs\n"})
+        for ref in ("refs/heads/work/x", "refs/heads/main", ""):
+            d = cp.decide(args(self.r, before=c1, after=c2, ref=ref))
+            self.assertFalse(d.run, (ref, d.reason))
+            self.assertEqual(d.files, ["README.md"], ref)
 
     # 4
     def test_new_branch_touching_only_other_paths_skips(self):

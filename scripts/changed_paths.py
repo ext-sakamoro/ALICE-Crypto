@@ -15,6 +15,7 @@ decide   which files changed, and whether any matches the patterns
     --after SHA         github.event.after or github.sha (push)
     --created BOOL      github.event.created (push; true when the push created the branch)
     --forced BOOL       github.event.forced (push)
+    --ref REF           github.ref (push; a `refs/heads/ci/` ref is compared with main-ref)
     --base SHA          github.event.pull_request.base.sha (pull_request)
     --head SHA          github.event.pull_request.head.sha (pull_request)
     --main-ref REF      the ref a new branch is compared with (default origin/main)
@@ -24,6 +25,8 @@ decide   which files changed, and whether any matches the patterns
   The diff:
     schedule, workflow_dispatch          always run (no diff)
     push, created / forced / before=0…0  merge-base(main-ref, after)..after
+    push to refs/heads/ci/**             merge-base(main-ref, after)..after (every push: the
+                                         branch is checked as a whole before it lands)
     push, otherwise                      before..after (the same as the old filter, also on main)
     pull_request                         base...head
   Fail-closed (run=true, the reason is logged): a git failure, a missing merge-base, an
@@ -200,10 +203,11 @@ def decide(a: argparse.Namespace) -> Decision:
             if is_zero(a.after):
                 return Decision(True, "fail-closed: push without an after SHA")
             after = git(a.repo, "rev-parse", "--verify", f"{a.after}^{{commit}}").strip()
-            if truthy(a.created) or truthy(a.forced) or is_zero(a.before):
-                new_branch = True
+            ci_branch = (getattr(a, "ref", "") or "").startswith("refs/heads/ci/")
+            if truthy(a.created) or truthy(a.forced) or is_zero(a.before) or ci_branch:
+                new_branch = truthy(a.created) or truthy(a.forced) or is_zero(a.before)
                 why = ("created" if truthy(a.created) else "forced" if truthy(a.forced)
-                       else "before is 0")
+                       else "before is 0" if is_zero(a.before) else "ci/** branch")
                 base = git(a.repo, "merge-base", a.main_ref, after).strip()
                 if not base:
                     return Decision(True, f"fail-closed: no merge-base of {a.main_ref} and {after}")
@@ -898,7 +902,7 @@ def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("decide")
-    for k in ("event", "before", "after", "created", "forced", "base", "head", "patterns-file"):
+    for k in ("event", "before", "after", "created", "forced", "ref", "base", "head", "patterns-file"):
         d.add_argument(f"--{k}", default="")
     d.add_argument("--pattern", action="append", default=[])
     d.add_argument("--main-ref", default="origin/main")

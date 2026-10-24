@@ -49,6 +49,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- `scripts/changed_paths.py decide` に `--ref` (github.ref) を足した `refs/heads/ci/` への push は毎回 merge-base(main-ref, after)..after で比べる (同じ branch の前の push が対象の path を変え、最新の push が変えていない時も走る) ほかの branch と `--ref` の無い呼び出しは従来どおり before..after workflow の decide の呼び出しは `--ref "$REF"` (REF: github.ref) を渡す 試験 2 本 (先に赤)
 - Licence: `AGPL-3.0-or-later OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
 - `CONTRIBUTING.md` を削除した
 - AEAD の失敗の型を `aead::AeadError` の 1 つにした `aes_gcm::AeadError` と `chacha20poly1305_ietf::AeadError` はそれを再公開する (path も variant も同じ) 表示は「AEAD authentication failed」になる (以前の aes_gcm は「AES-128-GCM authentication failed」)
