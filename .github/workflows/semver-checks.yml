@@ -77,11 +77,12 @@ jobs:
           AFTER: ${{ github.event.after || github.sha }}
           CREATED: ${{ github.event.created }}
           FORCED: ${{ github.event.forced }}
+          REF: ${{ github.ref }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: >-
           python3 scripts/changed_paths.py decide --event "$EVENT"
-          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED" --ref "$REF"
           --base "$PR_BASE" --head "$PR_HEAD"
           --patterns-file .github/paths/semver-checks.txt
 
