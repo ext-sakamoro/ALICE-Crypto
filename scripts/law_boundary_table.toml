@@ -399,6 +399,18 @@ class = "ciphertext and keys"
 reason = "an AES-128-GCM ciphertext with its tag, the plaintext, associated data, key and nonce: no differential-privacy value"
 
 [[function]]
+file = "src/chacha20poly1305_ietf.rs"
+name = "seal"
+class = "ciphertext and keys"
+reason = "a ChaCha20-Poly1305 (RFC 8439) ciphertext with its tag, the plaintext, associated data, key and nonce: no differential-privacy value"
+
+[[function]]
+file = "src/chacha20poly1305_ietf.rs"
+name = "open"
+class = "ciphertext and keys"
+reason = "a ChaCha20-Poly1305 (RFC 8439) ciphertext with its tag, the plaintext, associated data, key and nonce: no differential-privacy value"
+
+[[function]]
 file = "src/hpke.rs"
 name = "derive_key_pair"
 class = "key material"
