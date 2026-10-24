@@ -67,6 +67,7 @@ All notable changes to ALICE-Crypto are documented here.
 ### Fixed
 
 - `.github/workflows/g3-ir.yml` の on.push から paths filter を外した 既存の SHA に作った branch では GitHub の filter が空の差分を見て run を skip していた 代わりに `scripts/changed_paths.py` (ALICE-DetMath と同一) と `.github/paths/g3-ir.txt` で merge-base(origin/main) から実行可否を決める changes job と、走るべき IR job が走らなかった時に red になる gate job を足した `scripts/test_changed_paths.py` を CI と preflight で実行する
+- `.github/workflows/fuzz.yml` / `security-audit.yml` / `semver-checks.yml` の on.push からも paths filter を外し、g3-ir と同じ changes job と gate job に移した (patterns は `.github/paths/<workflow>.txt`、pull_request の paths と同じ並び) 新しい `ci/**` branch の最初の push で head の commit が対象 path に触れないと、3 本とも run が作られていなかった CI と preflight で `scripts/changed_paths.py sync` を実行し、main 以外の branch で on.push に paths を持つ workflow を失敗にする
 - `alice-law-conformance.toml` の G3 の evidence を、検査器の 3 file (`tools/no-outer-fneg-of-fma/src/main.rs` / `Cargo.toml` / `Cargo.lock`) それぞれの path で始まる 3 項目に分けた ALICE-Law の roster 検査は evidence の先頭の語を main にある path として読むので、`{Cargo.toml,Cargo.lock,src/main.rs}` とまとめた形は存在しない path として拒否されていた
 
 ## [0.4.1] — 2026-10-11
