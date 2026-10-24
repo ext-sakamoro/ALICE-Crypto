@@ -648,10 +648,142 @@ class Sync(unittest.TestCase):
                 errs, _ = cp.sync(self.tree(wf))
                 self.assertTrue(errs, push)
 
+    def test_a_push_trigger_that_is_not_a_mapping_fails(self):
+        for push in ("  push: [main]\n", "  push: main\n"):
+            with self.subTest(push=push):
+                wf = WF_OK.replace("  push:\n    branches: [main, 'ci/**']\n", push)
+                errs, _ = cp.sync(self.tree(wf))
+                self.assertTrue(any("on.push is" in e for e in errs), errs)
+
     def test_comments_everywhere_in_a_synced_workflow_pass(self):
         wf = "\n".join(l + ("\n# c\n  # c" if l.strip() and not l.startswith("      - run") else "")
                        for l in WF_OK.split("\n"))
         self.assertEqual(cp.sync(self.tree(wf)), ([], 1), wf)
+
+
+class Reader(unittest.TestCase):
+    """the strict workflow reader: the tree yaml.safe_load builds (PyYAML 6.0.2 wrote each expected
+    value below), FormError outside the subset, and FormError for text that is not YAML"""
+
+    READ = [
+        ('literal blank lines', 'run: |\n  a\n\n  b\n\n\nx: 1\n',
+         {'run': 'a\n\nb\n', 'x': 1}),
+        ('literal keep', 'run: |+\n  a\n\n\nx: 1\n',
+         {'run': 'a\n\n\n', 'x': 1}),
+        ('literal strip', 'run: |-\n  a\n  b\n',
+         {'run': 'a\nb'}),
+        ('literal more indented', 'run: |\n  a\n    b\n  c\n',
+         {'run': 'a\n  b\nc\n'}),
+        ('literal comment on the header', 'run: | # c\n  a\n',
+         {'run': 'a\n'}),
+        ('folded', 'run: >\n  a\n  b\n\n  c\n',
+         {'run': 'a b\nc\n'}),
+        ('folded more indented', 'run: >\n  a\n    b\n  c\n  d\n',
+         {'run': 'a\n  b\nc d\n'}),
+        ('folded strip', 'run: >-\n  a\n  b\n',
+         {'run': 'a b'}),
+        ('folded more indented then blank', 'run: >\n  a\n    b\n\n  c\n',
+         {'run': 'a\n  b\n\nc\n'}),
+        ('sequence of mappings', 'steps:\n  - name: a\n    run: b\n  - uses: c\n    with:\n      k: v\n',
+         {'steps': [{'name': 'a', 'run': 'b'}, {'uses': 'c', 'with': {'k': 'v'}}]}),
+        ("sequence at the key's indent", 'k:\n- a\n- b\nz: 1\n',
+         {'k': ['a', 'b'], 'z': 1}),
+        ('nested sequence', 'a:\n  - - x\n    - y\n  - z\n',
+         {'a': [['x', 'y'], 'z']}),
+        ('on is the key True', 'on:\n  push:\n    branches: [main]\n',
+         {True: {'push': {'branches': ['main']}}}),
+        ('quoted on stays a string', "'on':\n  push: null\n",
+         {'on': {'push': None}}),
+        ('YAML 1.1 bools and nulls', 'a: yes\nb: No\nc: off\nd: ~\ne:\n',
+         {'a': True, 'b': False, 'c': False, 'd': None, 'e': None}),
+        ('ints and floats', 'a: 0\nb: -12\nc: 1_000\nd: 3.12\ne: 3.10\n',
+         {'a': 0, 'b': -12, 'c': 1000, 'd': 3.12, 'e': 3.1}),
+        ('strings that only look typed', "a: 3.12.1\nb: v1\nc: '0123'\nd: 1e3x\n",
+         {'a': '3.12.1', 'b': 'v1', 'c': '0123', 'd': '1e3x'}),
+        ('colons inside plain scalars', "if: github.ref == 'refs/heads/main'\nrun: echo a:b\nurl: http://x.y/z\n",
+         {'if': "github.ref == 'refs/heads/main'", 'run': 'echo a:b', 'url': 'http://x.y/z'}),
+        ('hash inside and after plain scalars', "a: b#c\nb: c # d\nc: '# e'\n",
+         {'a': 'b#c', 'b': 'c', 'c': '# e'}),
+        ('double-quoted escapes', 'a: "x\\ty\\n\\"z\\u00e9"\n',
+         {'a': 'x\ty\n"zé'}),
+        ('single-quoted escape', "a: 'it''s'\n",
+         {'a': "it's"}),
+        ('flow collections', 'a: [x, \'y\', "z", 1, true]\nb: []\nc: {k: v, n: [1, 2]}\nd: {}\n',
+         {'a': ['x', 'y', 'z', 1, True], 'b': [], 'c': {'k': 'v', 'n': [1, 2]}, 'd': {}}),
+        ('flow mappings as sequence items', 'm:\n  - {os: a, t: b}\n  - { os: c }\n',
+         {'m': [{'os': 'a', 't': 'b'}, {'os': 'c'}]}),
+        ('colons inside flow scalars', "a: [ci/**, 'x:y', a:b]\n",
+         {'a': ['ci/**', 'x:y', 'a:b']}),
+        ('comments at every indentation', '# top\na:\n# c0\n  b: 1\n  # c2\n  c: 2\n',
+         {'a': {'b': 1, 'c': 2}}),
+        ('document start', '---\na: 1\n',
+         {'a': 1}),
+        ('expressions', "if: ${{ github.event_name == 'push' }}\nx: ${{ matrix.os }}\n",
+         {'if': "${{ github.event_name == 'push' }}", 'x': '${{ matrix.os }}'}),
+    ]
+
+    REFUSE = [  # valid YAML outside the subset (PyYAML reads each one)
+        ('an anchor and an alias', 'a: &x 1\nb: *x\n'),
+        ('a merge key', 'a: {k: 1}\nb:\n  <<: {k: 2}\n'),
+        ('a tag', 'a: !!str 1\n'),
+        ('a multi-line plain scalar', 'a: b\n  c\n'),
+        ('a multi-line quoted scalar', "a: 'b\n  c'\n"),
+        ('a multi-line flow collection', 'a: [b,\n  c]\n'),
+        ('an indentation indicator', 'a: |2\n   b\n'),
+        ('a complex key', '? a\n: b\n'),
+        ('a duplicate key', 'a: 1\na: 2\n'),
+        ('an octal int', 'a: 0755\n'),
+        ('a hex int', 'a: 0x1f\n'),
+        ('a sexagesimal number', 'a: 1:30\n'),
+        ('a float with an exponent', 'a: 1.0e+3\n'),
+        ('an inf float', 'a: .inf\n'),
+        ('a timestamp', 'a: 2026-10-24\n'),
+        ('a tab in the indentation', 'a:\n\tb: 1\n'),
+    ]
+
+    INVALID = [  # not YAML (PyYAML rejects each one)
+        ('a colon-space inside a plain scalar', 'run: echo "a: b"\n'),
+        ('a mapping value after a plain scalar', 'a: b: c\n'),
+        ('a dedent that matches no level', 'a:\n  b: 1\n c: 2\n'),
+        ('an unclosed flow sequence', 'a: [x\n'),
+        ('an unclosed quote', "a: 'x\n"),
+        ('a key after a top-level sequence', '- a\nb: 1\n'),
+        ('two documents', 'a: 1\n---\nb: 2\n'),
+        ('a column-0 comment inside a literal block', 'a: |\n  x\n# c\n  y\n'),
+    ]
+
+    def test_reads_the_tree_yaml_builds(self):
+        for name, src, want in self.READ:
+            with self.subTest(name):
+                self.assertEqual(cp.load_yaml(src), want)
+
+    def test_refuses_what_is_outside_the_subset(self):
+        for name, src in self.REFUSE:
+            with self.subTest(name):
+                with self.assertRaises(cp.FormError):
+                    cp.load_yaml(src)
+
+    def test_refuses_what_is_not_yaml(self):
+        for name, src in self.INVALID:
+            with self.subTest(name):
+                with self.assertRaises(cp.FormError):
+                    cp.load_yaml(src)
+
+    def test_a_crlf_file_reads_like_its_lf_form(self):
+        for name, src, want in self.READ:
+            with self.subTest(name):
+                self.assertEqual(cp.load_yaml(src.replace("\n", "\r\n")), want)
+        with self.assertRaises(cp.FormError):
+            cp.load_yaml("a: 1\rb: 2\n")
+
+    def test_sync_reports_a_workflow_outside_the_subset(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            (root / ".github" / "workflows").mkdir(parents=True)
+            (root / ".github" / "workflows" / "x.yml").write_text("on:\n  push: &p\n    branches: [a]\n",
+                                                                  encoding="utf-8")
+            errs, _ = cp.sync(root)
+            self.assertTrue(any("strict subset" in e for e in errs), errs)
 
 
 if __name__ == "__main__":
