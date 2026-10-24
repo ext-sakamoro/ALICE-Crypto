@@ -323,17 +323,6 @@ def on_block(text: str) -> list[str]:
     return block
 
 
-def sub_block(block: list[str], key: str, indent: int) -> list[str] | None:
-    pre = " " * indent
-    for i, l in enumerate(block):
-        if re.match(rf"^{pre}{re.escape(key)}:\s*$", l):
-            body = []
-            for m in block[i + 1:]:
-                if m.strip() and not m.startswith(pre + " "):
-                    break
-                body.append(m)
-            return body
-    return None
 
 
 def list_items(body: list[str]) -> list[str]:
@@ -348,21 +337,53 @@ def list_items(body: list[str]) -> list[str]:
     return out
 
 
-def push_branches(push: list[str]) -> list[str] | None:
-    """the `branches` of an on.push block (None when it has none: every branch)"""
-    for i, l in enumerate(push):
-        m = re.match(r"^    branches:\s*(.*?)\s*$", l)
-        if not m:
-            continue
-        if m.group(1).startswith("["):
-            return [x.strip().strip("'\"") for x in m.group(1).strip("[]").split(",") if x.strip()]
-        body = []
-        for b in push[i + 1:]:
-            if b.strip() and not b.startswith("      "):
-                break
-            body.append(b)
-        return list_items(body)
+class FormError(ValueError):
+    """a trigger written in a form this lint does not read (it fails rather than passes)"""
+
+
+def key_value(block: list[str], key: str, indent: int) -> tuple[str, list[str]] | None:
+    """`key` at this indentation in a block: (its inline value, the lines under it), or None when absent"""
+    pre = " " * indent
+    for i, l in enumerate(block):
+        m = re.match(rf"^{pre}{re.escape(key)}:(?:\s+(.*?))?\s*$", l)
+        if m:
+            body = []
+            for b in block[i + 1:]:
+                if b.strip() and not b.startswith(pre + " "):
+                    break
+                body.append(b)
+            return (m.group(1) or "").strip(), body
     return None
+
+
+def flow_list(text: str) -> list[str] | None:
+    """the items of a flow sequence `[a, 'b', "c"]` (no nesting, no commas inside an item), or None"""
+    if not (text.startswith("[") and text.endswith("]")):
+        return None
+    inner = text[1:-1]
+    if any(c in inner for c in "[]{}"):
+        return None
+    out = []
+    for x in inner.split(","):
+        x = x.strip()
+        if len(x) >= 2 and x[0] == x[-1] and x[0] in "'\"":
+            x = x[1:-1]
+        if x:
+            out.append(x)
+    return out
+
+
+def str_list(found: tuple[str, list[str]], what: str) -> list[str]:
+    """a key's value as a list of strings, from a block sequence or a flow sequence"""
+    inline, body = found
+    if not inline:
+        return list_items(body)
+    items = flow_list(inline)
+    if items is None:
+        raise FormError(f"{what} is `{inline}`, which this lint does not read (write a list)")
+    return items
+
+
 
 
 def jobs_needs(text: str) -> dict[str, tuple[list[str], bool]]:
@@ -436,12 +457,27 @@ def sync(root: Path) -> tuple[list[str], int]:
     wf_dir, pat_dir = root / ".github" / "workflows", root / ".github" / "paths"
     errs: list[str] = []
     for f in sorted(list(wf_dir.glob("*.yml")) + list(wf_dir.glob("*.yaml"))):
-        push = sub_block(on_block(f.read_text(encoding="utf-8")), "push", 2)
-        if push is not None and push_branches(push) != ["main"]:
+        found = key_value(on_block(f.read_text(encoding="utf-8")), "push", 2)
+        if found is None:
+            continue
+        inline, push = found
+        if inline not in ("", "null", "~", "{}"):
+            errs.append(f"{f.name}: on.push is `{inline}`, which this lint does not read "
+                        f"(write it as a block)")
+            continue
+        try:
+            br = key_value(push, "branches", 4)
+            branches = None if br is None else str_list(br, "on.push.branches")
+            if branches == ["main"]:
+                continue
             for key in ("paths", "paths-ignore"):
-                if sub_block(push, key, 4) is not None:
+                kv = key_value(push, key, 4)
+                if kv is not None:
+                    str_list(kv, f"on.push.{key}")
                     errs.append(f"{f.name}: on.push has `{key}` (a new branch at an existing SHA "
                                 f"skips the run); use a changes job with scripts/changed_paths.py")
+        except FormError as e:
+            errs.append(f"{f.name}: {e}")
     compared = 0
     for p in sorted(pat_dir.glob("*.txt")) if pat_dir.is_dir() else []:
         wf = wf_dir / f"{p.stem}.yml"
@@ -462,12 +498,18 @@ def sync(root: Path) -> tuple[list[str], int]:
             continue
         if rel not in pats:
             errs.append(f"{rel}: does not list itself (a change to the patterns must run the workflow)")
-        pr = sub_block(on_block(text), "pull_request", 2)
+        pr = key_value(on_block(text), "pull_request", 2)
         if pr is not None:
-            paths = sub_block(pr, "paths", 4)
-            if paths is not None and list_items(paths) != pats:
-                errs.append(f"{wf.name}: on.pull_request.paths differ from {rel} "
-                            f"({list_items(paths)} != {pats})")
+            kv = key_value(pr[1], "paths", 4)
+            if kv is not None:
+                try:
+                    pr_paths = str_list(kv, "on.pull_request.paths")
+                except FormError as e:
+                    errs.append(f"{wf.name}: {e}")
+                    continue
+                if pr_paths != pats:
+                    errs.append(f"{wf.name}: on.pull_request.paths differ from {rel} "
+                                f"({pr_paths} != {pats})")
     return errs, compared
 
 
