@@ -101,6 +101,9 @@ step "ci.yml / float-environment: Shared files equal ALICE-Law's table"
 python3 scripts/test_shared_files.py
 scripts/shared_files.sh
 
+step "ci.yml: G11 table matches the declared gates (G11)"
+scripts/g11_table.sh
+
 step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 2)"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std )
 
