@@ -5,6 +5,7 @@
 # rlib` on alice-crypto itself would hide it
 [package]
 name = "alice-crypto-no-std-consumer"
+license = "LicenseRef-Proprietary"
 version = "0.0.0"
 edition = "2021"
 publish = false
