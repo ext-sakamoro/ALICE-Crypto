@@ -51,6 +51,7 @@ All notable changes to ALICE-Crypto are documented here.
 
 ### Changed
 - Licence: `AGPL-3.0-or-later OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
+- CI (ALICE-Law G11): shared-files と G11 の表の pin を ALICE-Law 9cb423c に上げ (self-check が pin と crate の tree を commit した bytes で読み、subprocess の出力を UTF-8 で読む)、self-check を preflight でも走らせる 共有の写しの bytes は同じ
 - CI: `scripts/id_move_check.py` と試験を ALICE-Law 0e8c14e の表の bytes に、shared-files と G11 の表の pin を 0e8c14e に、ALICE-Law の `scripts/g11_self_check.py` を固定した revision で走らせる step を足した ALICE-Law G11 は pass
 - AEAD の失敗の型を `aead::AeadError` の 1 つにした `aes_gcm::AeadError` と `chacha20poly1305_ietf::AeadError` はそれを再公開する (path も variant も同じ) 表示は「AEAD authentication failed」になる (以前の aes_gcm は「AES-128-GCM authentication failed」)
 - CI: 試験 `scripts/test_changed_paths.py` の fixture の repository は自動の gc と maintenance を止める (`gc.auto 0` / `gc.autoDetach false` / `maintenance.auto false`、設定を固定する試験を足した) 切り離された gc が後片付けの最中に `.git` へ書き、一時 dir の削除が `Directory not empty` で落ちることがあった この file は他の crate と共有するので ALICE-Law の表の target をこの bytes にした版 (185d38d) に `.github/shared-files-pin` を移した
