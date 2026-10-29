@@ -50,6 +50,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- CI (ALICE-Law G9 / G11): 識別子の移動の検査器 (`scripts/id_move_check.py` と試験) を共有の新しい bytes にし、新しく足した associated const を受けるようにした 他の共有の file も ALICE-Law 5bb1bea9 の表が計画した bytes にし、shared-files と G11 の表の pin を上げた
 - Licence: `AGPL-3.0-or-later OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
 - CI (ALICE-Law G11): shared-files と G11 の表の pin を ALICE-Law 9cb423c に上げ (self-check が pin と crate の tree を commit した bytes で読み、subprocess の出力を UTF-8 で読む)、self-check を preflight でも走らせる 共有の写しの bytes は同じ
 - CI: `scripts/id_move_check.py` と試験を ALICE-Law 0e8c14e の表の bytes に、shared-files と G11 の表の pin を 0e8c14e に、ALICE-Law の `scripts/g11_self_check.py` を固定した revision で走らせる step を足した ALICE-Law G11 は pass
