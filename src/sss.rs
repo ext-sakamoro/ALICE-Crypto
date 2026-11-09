@@ -191,7 +191,7 @@ impl core::fmt::Display for SssError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for SssError {}
 
 extern crate alloc;

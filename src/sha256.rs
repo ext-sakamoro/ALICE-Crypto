@@ -111,5 +111,5 @@ impl core::fmt::Display for HkdfError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for HkdfError {}

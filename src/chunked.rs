@@ -43,7 +43,7 @@
 //! # Example
 //!
 //! ```
-//! # #[cfg(feature = "std")]
+//! # #[cfg(feature = "std-base")]
 //! # fn main() -> Result<(), alice_crypto::chunked::ChunkedError> {
 //! use std::io::Write;
 //! use alice_crypto::chunked::{open_to_end, ChunkedWriter, DEFAULT_CHUNK_SIZE};
@@ -57,7 +57,7 @@
 //! assert_eq!(&plain[..], b"a value too large to hold twice in memory");
 //! # Ok(())
 //! # }
-//! # #[cfg(not(feature = "std"))]
+//! # #[cfg(not(feature = "std-base"))]
 //! # fn main() {}
 //! ```
 
@@ -122,7 +122,7 @@ pub enum ChunkedError {
     /// The operating system's entropy source failed
     Rng,
     /// Reading or writing the underlying stream failed
-    #[cfg(feature = "std")]
+    #[cfg(feature = "std-base")]
     Io(std::io::Error),
 }
 
@@ -144,16 +144,16 @@ impl fmt::Display for ChunkedError {
             Self::ChunkLength => write!(f, "a chunk has the wrong length"),
             Self::Finished => write!(f, "the stream already ended"),
             Self::Rng => write!(f, "the operating system's entropy source failed"),
-            #[cfg(feature = "std")]
+            #[cfg(feature = "std-base")]
             Self::Io(e) => write!(f, "{e}"),
         }
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for ChunkedError {}
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl From<std::io::Error> for ChunkedError {
     fn from(e: std::io::Error) -> Self {
         Self::Io(e)
@@ -448,9 +448,9 @@ impl ChunkOpener {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 mod io;
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 pub use io::{open_to_end, ChunkedWriter, UnverifiedChunkedReader};
 
 #[cfg(test)]

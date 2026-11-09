@@ -48,7 +48,15 @@ alice-crypto = { version = "0.1" }
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | yes | Standard library support (implies `rng`, std I/O) |
+| `std` | yes | `std-base` and `full`: the standard library and every module (the build of 0.6) |
+| `std-base` | via `std` | The standard library and the OS random source (`rng`) with no module feature: `dp` (with `SecureRng::try_from_entropy`), `gf256`, `keystore`, `random`, `semantics`, and none of the AEAD, KDF, key-exchange or hash dependencies |
+| `full` | via `std` | Every module feature below |
+| `hash` | via `full` | BLAKE3 (`hash`) and the modules on it: `mac`, `signature`, `sss` |
+| `sha256` | via `full` | SHA-256, HMAC-SHA256, HKDF-SHA256 (`sha256`) |
+| `aead` | via `full` | `stream`, `chacha20poly1305_ietf`, `aes_gcm`, `aead`, `envelope`, `chunked`, and `KeyProvider` |
+| `kdf` | via `full` | Argon2id and HKDF-BLAKE3 (`kdf`, implies `hash`) |
+| `x25519` | via `full` | X25519 (`x25519`) |
+| `hpke` | via `full` | HPKE base mode (`hpke`, implies `aead`, `sha256`, `x25519`) |
 | `rng` | via `std` | The operating system's random source (`getrandom`): key, nonce and share generation, `random::fill`, sealing with a fresh nonce, the HPKE sender, `try_from_entropy`. Without it no `getrandom` is linked and the hashes, MACs, KDFs, AEADs with a given nonce, opening and dp from a key build on every target |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
@@ -62,12 +70,18 @@ For `no_std` environments (embedded, RTOS, WASM):
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc"] }
 ```
 
-Hash, MAC and KDF only (SHA-256, HMAC, HKDF, BLAKE3), on any target including `wasm32-unknown-unknown`, with no
-OS random source linked:
+Only what you call, on any target including `wasm32-unknown-unknown`, with no OS random source linked (here SHA-256):
 
 ```toml
 [dependencies]
-alice-crypto = { version = "0.6", default-features = false }
+alice-crypto = { version = "0.7", default-features = false, features = ["sha256"] }
+```
+
+Differential privacy with an OS key and no AEAD / KDF / key-exchange dependency:
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.7", default-features = false, features = ["std-base"] }
 ```
 
 Bare-metal targets that `getrandom` does not support (e.g. `thumbv7em-none-eabihf`)

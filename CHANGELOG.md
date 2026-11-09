@@ -4,7 +4,13 @@ All notable changes to ALICE-Crypto are documented here.
 
 ## [Unreleased]
 
+### 破壊的変更
+
+- module ごとの feature (`hash` / `sha256` / `aead` / `kdf` / `x25519` / `hpke`) と、全部を含む `full` を足した `std` は `std-base` (標準 library・OS の乱数源・常にある module) と `full` からなるので、既定と `default-features = false, features = ["std"]` の利用側は変わらない `default-features = false` で `std` を付けない利用側は、使う module の feature を足す (足さないと `hash` / `mac` / `signature` / `sss` / `sha256` / AEAD・envelope・chunked・`KeyProvider` / `kdf` / `x25519` / `hpke` が無い) 該当する利用側 (各 repo の main を grep): ALICE-Identity (`sha256` だけを使う、同じ時期に `features = ["sha256"]` へ) / `sha256` だけを `default-features = false` で取る他の利用側 (commit に固定しているので今は影響を受けない、0.7 に上げる時に `features = ["sha256"]` を足す) この repo の `consumers/no_std` は `features = ["full"]` にした
+
 ### Added
+- feature `std-base`: 標準 library と OS の乱数源だけで、module の依存 (aes-gcm / argon2 / blake3 / chacha20poly1305 / hkdf / hmac / sha2 / x25519-dalek) を持たない build dp (`SecureRng::try_from_entropy` を含む) と `random` / `keystore` / `gf256` / `semantics` が使える 試験 `tests/std_base_dp.rs`
+- CI: no_std job に「std-base の依存木に module の依存が 0 件 (`full` では見つかること、木が 2 件以上を列挙することも確かめる) と dp・random の試験が 30 件以上通る」段、`full` (std・rng なし) で各 module の既知解の試験が 40 件以上通る段 feature-powerset job に module feature を 1 つずつ (std なし、`std-base` 付き) check する段
 - feature `rng`: OS の乱数源 (getrandom) を optional にし、`rng` の下に置いた `std` が `rng` を含むので、既定と `default-features = false, features = ["std"]` の利用側は変わらない `rng` なし (`default-features = false` のみ、または `alloc`) では getrandom を link せず、SHA-256 / HMAC / HKDF / BLAKE3・与えた nonce での AEAD・開封・鍵からの dp が wasm32-unknown-unknown を含む全 target で build できる `custom-rng` は `rng` を含む
 - CI: no_std job に 2 段を足した (1) `rng` なしで wasm32-unknown-unknown を check し、`cargo tree` が 2 件以上を列挙して getrandom が 0 件 (2) `rng` なしで SHA-256 / HMAC / HKDF の既知解と記録した bit の試験が 20 件以上通る `wasm-dp.yml` の matrix に envelope_oracle と chunked_oracle を足し、その path を両方の一覧に足した
 - CI: `dp` の oracle と noise の golden を wasm32-wasip1 で走らせる workflow `wasm-dp.yml` (wasmtime、release、試験 file ごとに 1 job、各 job は通った試験が 0 件なら fail) golden が noise の bit を固定しているので、通れば wasm の noise は host と同じ `src/dp.rs` / `tests/dp_*.rs` / 依存の版を変えた時だけ走る (1 file 約 6 分) 手元の測定: 32 試験が wasm32-wasip1 で通る

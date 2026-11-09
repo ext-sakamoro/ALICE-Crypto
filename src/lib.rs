@@ -108,28 +108,42 @@
 //! | BLAKE3 | Computational (256-bit preimage resistance) | Partially (128-bit post-quantum) |
 //! | XChaCha20-Poly1305 | Computational (256-bit key, 192-bit nonce) | No (symmetric = 128-bit post-quantum) |
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#![cfg_attr(not(feature = "std-base"), no_std)]
 
 extern crate alloc;
 
+#[cfg(feature = "aead")]
 pub mod aead;
+#[cfg(feature = "aead")]
 pub mod aes_gcm;
+#[cfg(feature = "aead")]
 pub mod chacha20poly1305_ietf;
+#[cfg(feature = "aead")]
 pub mod chunked;
 pub mod dp;
+#[cfg(feature = "aead")]
 pub mod envelope;
 pub mod gf256;
+#[cfg(feature = "hash")]
 pub mod hash;
+#[cfg(feature = "hpke")]
 pub mod hpke;
+#[cfg(feature = "kdf")]
 pub mod kdf;
 pub mod keystore;
+#[cfg(feature = "hash")]
 pub mod mac;
 pub mod random;
 pub mod semantics;
+#[cfg(feature = "sha256")]
 pub mod sha256;
+#[cfg(feature = "hash")]
 pub mod signature;
+#[cfg(feature = "hash")]
 pub mod sss;
+#[cfg(feature = "aead")]
 pub mod stream;
+#[cfg(feature = "x25519")]
 pub mod x25519;
 
 // Re-exports
@@ -137,28 +151,33 @@ pub use dp::{
     bernoulli_ratio, dp_count, dp_int, dp_sum, randomized_response, DpError, DpNoise, EntropyError,
     SecureRng, RR_MAX_EPSILON_WHOLE,
 };
+#[cfg(feature = "aead")]
 pub use envelope::{
     envelope_key_id, open_envelope, EnvelopeError, ENVELOPE_HEADER_SIZE, ENVELOPE_OVERHEAD,
     ENVELOPE_VERSION,
 };
-#[cfg(feature = "rng")]
+#[cfg(all(feature = "aead", feature = "rng"))]
 pub use envelope::{reseal_envelope, seal_envelope};
 pub use gf256::{batch_inv, batch_inv_stack, GF};
+#[cfg(feature = "hash")]
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
+#[cfg(feature = "kdf")]
 pub use kdf::{
     argon2id, argon2id_with, password_stretch, Argon2Params, HkdfBlake3, KdfError, Prk,
     ARGON2_MIN_SALT,
 };
-pub use keystore::{
-    KeyEntry, KeyGeneration, KeyId, KeyProvider, KeyProviderError, KeyStore, KeyStoreError,
-    KeyStoreProvider,
-};
+pub use keystore::{KeyEntry, KeyGeneration, KeyId, KeyProviderError, KeyStore, KeyStoreError};
+#[cfg(feature = "aead")]
+pub use keystore::{KeyProvider, KeyStoreProvider};
 pub use semantics::CRYPTO_SEMANTICS_ID;
+#[cfg(feature = "hash")]
 #[allow(deprecated)]
 pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};
-#[cfg(feature = "rng")]
+#[cfg(all(feature = "hash", feature = "rng"))]
 pub use sss::split;
+#[cfg(feature = "hash")]
 pub use sss::{recover, Shard, SssError};
+#[cfg(feature = "aead")]
 pub use stream::{
     decrypt_in_place,
     decrypt_in_place_aead,
@@ -173,7 +192,7 @@ pub use stream::{
     Nonce,
     TAG_SIZE,
 };
-#[cfg(feature = "rng")]
+#[cfg(all(feature = "aead", feature = "rng"))]
 pub use stream::{seal, seal_with_aad};
 
 /// Version (always the built crate's `CARGO_PKG_VERSION`)

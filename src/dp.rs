@@ -419,7 +419,7 @@ impl core::fmt::Display for DpError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for DpError {}
 
 // ---------------------------------------------------------------------------

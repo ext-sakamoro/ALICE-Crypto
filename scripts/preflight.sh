@@ -116,7 +116,7 @@ step "ci.yml / float-environment: G11 self-check (ALICE-Law at the pinned revisi
 )
 
 step "ci.yml / feature-powerset: Powerset (std + {alloc, ffi, custom-rng} depth 2)"
-( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std )
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo hack check --lib --feature-powerset --depth 2 --features std --exclude-features std-base,full,rng,hash,sha256,aead,kdf,x25519,hpke )
 
 step "ci.yml / fmt: Check formatting"
 ( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings" NATIVE_FEATURES="std,ffi"; cargo fmt -- --check )

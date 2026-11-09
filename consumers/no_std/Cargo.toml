@@ -11,7 +11,9 @@ edition = "2021"
 publish = false
 
 [dependencies]
-alice-crypto = { path = "../..", default-features = false }
+# every module, without std (a no_std user names the modules it calls; this crate calls hash, mac,
+# sss, dp and the key provider)
+alice-crypto = { path = "../..", default-features = false, features = ["full"] }
 
 [features]
 # getrandom has no backend on bare metal; the final binary registers one

@@ -38,5 +38,5 @@ impl core::fmt::Display for RngError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for RngError {}

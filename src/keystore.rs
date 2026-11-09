@@ -3,7 +3,7 @@
 //! 鍵の生成・ローテーション・有効期限管理を提供。
 //! 鍵データはドロップ時にゼロクリアされる。
 
-#[cfg(not(feature = "std"))]
+#[cfg(not(feature = "std-base"))]
 use alloc::vec::Vec;
 
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -294,7 +294,7 @@ impl core::fmt::Display for KeyStoreError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for KeyStoreError {}
 
 // ============================================================================
@@ -307,6 +307,7 @@ impl std::error::Error for KeyStoreError {}
 /// Ids start at 1; 0 is never one.
 pub type KeyGeneration = u32;
 
+#[cfg(feature = "aead")]
 /// A store of 32-byte keys by generation, the one shape every key store implements (in memory, an OS keychain,
 /// a key held by a foreign callback), so that sealing code asks for "the current key" and "the key of generation
 /// g" without knowing where keys live.
@@ -360,9 +361,10 @@ impl core::fmt::Display for KeyProviderError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for KeyProviderError {}
 
+#[cfg(feature = "aead")]
 /// A [`KeyStore`] seen as a [`KeyProvider`] at one time (`now`, Unix seconds): the generation of a key is its
 /// [`KeyId`], which must fit 32 bits.
 ///
@@ -374,6 +376,7 @@ pub struct KeyStoreProvider<'a> {
     now: u64,
 }
 
+#[cfg(feature = "aead")]
 impl KeyStore {
     /// This store as a [`KeyProvider`] at time `now` (Unix seconds).
     #[must_use]
@@ -382,6 +385,7 @@ impl KeyStore {
     }
 }
 
+#[cfg(feature = "aead")]
 impl KeyProvider for KeyStoreProvider<'_> {
     fn current(&self) -> Result<(KeyGeneration, crate::Key), KeyProviderError> {
         let entry = self

@@ -53,7 +53,7 @@ impl core::fmt::Display for CipherError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for CipherError {}
 
 /// 32-byte symmetric key

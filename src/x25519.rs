@@ -67,5 +67,5 @@ impl core::fmt::Display for X25519Error {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for X25519Error {}

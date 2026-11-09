@@ -318,5 +318,5 @@ impl core::fmt::Display for HpkeError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for HpkeError {}

@@ -18,5 +18,5 @@ impl core::fmt::Display for AeadError {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "std-base")]
 impl std::error::Error for AeadError {}
