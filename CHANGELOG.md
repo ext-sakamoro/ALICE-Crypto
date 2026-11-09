@@ -51,6 +51,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- CI: wasm の job の wasmtime を v49.0.2 に固定し、配布物を SHA-256 (a4d6e9e3…、release の digest と手元の再計算で一致) で照合して retry 付きで取り、binary を cache する 配布元が落ち続けた時は同じ版の wasmtime-cli を crates.io から `cargo install --locked` で作る `wasmtime --version` が動かなければ fail (setup action は latest を選び、配布元の HTTP 504 で他の repository の job が落ちた)
 - CI (ALICE-Law G9 / G11): 識別子の移動の検査器 (`scripts/id_move_check.py` と試験) を共有の新しい bytes にし、新しく足した associated const を受けるようにした 他の共有の file も ALICE-Law 40973a8a の表が計画した bytes にし、shared-files と G11 の表の pin を上げた
 - Licence: `AGPL-3.0-or-later OR LicenseRef-Commercial` → `LicenseRef-Proprietary`
 - CI (ALICE-Law G11): shared-files と G11 の表の pin を ALICE-Law 9cb423c に上げ (self-check が pin と crate の tree を commit した bytes で読み、subprocess の出力を UTF-8 で読む)、self-check を preflight でも走らせる 共有の写しの bytes は同じ
