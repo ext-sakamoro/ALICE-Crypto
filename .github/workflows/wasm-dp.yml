@@ -1,0 +1,122 @@
+name: dp on wasm32
+
+# The differential-privacy noise (`dp`) runs in browsers and at the edge, so its
+# oracles and the noise golden run on wasm32-wasip1 under wasmtime, in release, one
+# test file per job. The golden pins the noise bits, so a passing run on wasm is the
+# same noise as on the host. Each job must report more than 0 passing tests.
+# Only changes that can move dp run it (patterns: .github/paths/wasm-dp.txt): one
+# file takes about 6 minutes.
+
+on:
+  push:
+    # no paths here: a branch created at a SHA another ref already has gets an empty
+    # diff from GitHub's filter and the run is skipped; the changes job below compares
+    # with merge-base(origin/main) instead (patterns: .github/paths/wasm-dp.txt)
+    # ci/**: the same checks on a branch before it is fast-forwarded to main
+    branches: [main, 'ci/**']
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/dp.rs'
+      - 'tests/dp_*.rs'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/wasm-dp.yml'
+      - 'scripts/changed_paths.py'
+      - '.github/paths/wasm-dp.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # which files changed (scripts/changed_paths.py decide); any error runs (fail-closed)
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: decide
+        id: decide
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after || github.sha }}
+          CREATED: ${{ github.event.created }}
+          FORCED: ${{ github.event.forced }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python3 scripts/changed_paths.py decide --event "$EVENT"
+          --before "$BEFORE" --after "$AFTER" --created "$CREATED" --forced "$FORCED"
+          --base "$PR_BASE" --head "$PR_HEAD"
+          --patterns-file .github/paths/wasm-dp.txt
+
+  dp:
+    name: dp — ${{ matrix.test }} (wasm32-wasip1)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # dp_timing measures wall-clock timing and is host-only
+        test:
+          - dp_noise_golden
+          - dp_mechanisms_oracle
+          - dp_discrete_laplace_oracle
+          - dp_lattice_oracle
+          - dp_noise_oracle
+          - dp_cost_model
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-dp
+      - name: Install wasmtime
+        uses: bytecodealliance/actions/wasmtime/setup@v1
+      - name: Test under wasmtime (release), more than 0 passing
+        shell: bash
+        env:
+          CARGO_TARGET_WASM32_WASIP1_RUNNER: wasmtime
+          T: ${{ matrix.test }}
+        run: |
+          set -o pipefail
+          cargo test --release --target wasm32-wasip1 --test "$T" 2>&1 | tee test.log
+          passed=$(sed -n 's/^test result: ok\. \([0-9][0-9]*\) passed.*/\1/p' test.log | awk '{s+=$1} END {print s+0}')
+          echo "dp on wasm32-wasip1: $T: $passed passed"
+          if [ "$passed" -le 0 ]; then
+            echo "::error::$T ran 0 tests on wasm32-wasip1"
+            exit 1
+          fi
+
+  # red when the changes job said run and a job was skipped, cancelled or failed
+  gate:
+    name: Gate
+    if: always()
+    needs: [changes, dp]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - name: gate
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/changed_paths.py gate --needs-json "$NEEDS"

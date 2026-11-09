@@ -1,0 +1,14 @@
+# the paths that run .github/workflows/wasm-dp.yml (scripts/changed_paths.py decide)
+# on.pull_request.paths of the workflow must list the same patterns in the same order
+# (scripts/changed_paths.py sync)
+# dp is src/dp.rs alone (it uses the chacha20 and zeroize crates, no other module of
+# this crate); its tests; the dependency versions and the toolchain
+src/dp.rs
+tests/dp_*.rs
+Cargo.toml
+Cargo.lock
+rust-toolchain.toml
+# the workflow and its tools
+.github/workflows/wasm-dp.yml
+scripts/changed_paths.py
+.github/paths/wasm-dp.txt
