@@ -48,11 +48,12 @@
 extern crate alloc;
 use alloc::vec::Vec;
 
+#[cfg(feature = "rng")]
 use zeroize::Zeroize;
 
-use crate::stream::{
-    decrypt_in_place_aead, encrypt_in_place_aead, CipherError, Key, Nonce, TAG_SIZE,
-};
+#[cfg(feature = "rng")]
+use crate::stream::encrypt_in_place_aead;
+use crate::stream::{decrypt_in_place_aead, CipherError, Key, Nonce, TAG_SIZE};
 
 /// Envelope format version written by [`seal_envelope`]
 pub const ENVELOPE_VERSION: u8 = 1;
@@ -88,6 +89,7 @@ impl From<CipherError> for EnvelopeError {
     }
 }
 
+#[cfg(feature = "rng")]
 fn header(key_id: u32) -> [u8; ENVELOPE_HEADER_SIZE] {
     let id = key_id.to_be_bytes();
     [ENVELOPE_VERSION, id[0], id[1], id[2], id[3]]
@@ -100,6 +102,7 @@ fn full_aad(head: &[u8], aad: &[u8]) -> Vec<u8> {
     v
 }
 
+#[cfg(feature = "rng")]
 /// Seal `plaintext` under `key`, labelled with `key_id`, bound to `aad`
 ///
 /// A fresh random nonce is drawn for every call.
@@ -198,6 +201,7 @@ pub fn open_envelope(
     Ok(buffer)
 }
 
+#[cfg(feature = "rng")]
 /// Re-seal an envelope under a new key and key id (key rotation)
 ///
 /// The intermediate plaintext is zeroed before return.

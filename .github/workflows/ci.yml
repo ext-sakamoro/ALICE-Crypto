@@ -237,6 +237,30 @@ jobs:
       # a crate that depends on alice-crypto without std builds the declared
       # crate-types, which the builds above (of alice-crypto itself) do not show
       # the way a user sees them; both rlibs must be reported for every target
+      # without default features (no `rng`) the crate links no OS random source: the hashes, MACs and
+      # KDFs build for wasm32-unknown-unknown with no getrandom backend, and the dependency tree has no
+      # getrandom (the tree must list entries, so an empty or failed listing is not read as "none")
+      - name: No OS random source without rng (wasm32-unknown-unknown build, dependency tree)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo check --lib --no-default-features --target wasm32-unknown-unknown
+          tree="$(cargo tree -e normal --no-default-features --prefix none --format '{p}')"
+          entries="$(printf '%s\n' "$tree" | grep -c .)"
+          rng="$(printf '%s\n' "$tree" | grep -c '^getrandom ' || true)"
+          echo "dependency tree without default features: ${entries} entries, ${rng} getrandom"
+          if [ "${entries}" -lt 2 ]; then echo "::error::the dependency tree listed ${entries} entries"; exit 1; fi
+          if [ "${rng}" -ne 0 ]; then echo "::error::getrandom is in the tree without the rng feature"; exit 1; fi
+      # the same SHA-256 / HMAC / HKDF known-answer vectors and recorded bits hold with and without rng
+      - name: Digest vectors without rng (known answers, recorded bits)
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$(cargo test --no-default-features --test mls_primitives_kat --test sha256_hasher --test semantics_golden 2>&1)"
+          printf '%s\n' "$out"
+          passed="$(printf '%s\n' "$out" | awk '/^test result: ok\./ { n += $4 } END { print n + 0 }')"
+          echo "passed without rng: ${passed:-0}"
+          if [ "${passed:-0}" -lt 20 ]; then echo "::error::only ${passed:-0} tests passed without rng"; exit 1; fi
       - name: Downstream no_std crate (host, wasm32-unknown-unknown with and without std, thumbv7em)
         run: python3 scripts/no_std_consumer.py
       - name: Downstream no_std crate (checker tests)

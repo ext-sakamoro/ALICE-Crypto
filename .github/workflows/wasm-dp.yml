@@ -3,7 +3,9 @@ name: dp on wasm32
 # The differential-privacy noise (`dp`) runs in browsers and at the edge, so its
 # oracles and the noise golden run on wasm32-wasip1 under wasmtime, in release, one
 # test file per job. The golden pins the noise bits, so a passing run on wasm is the
-# same noise as on the host. Each job must report more than 0 passing tests.
+# same noise as on the host. The envelope and chunked oracles run the same way (their
+# formats are sealed and opened in browsers too). Each job must report more than 0
+# passing tests.
 # Only changes that can move dp run it (patterns: .github/paths/wasm-dp.txt): one
 # file takes about 6 minutes.
 
@@ -19,6 +21,12 @@ on:
     paths:
       - 'src/dp.rs'
       - 'tests/dp_*.rs'
+      - 'src/envelope.rs'
+      - 'src/chunked.rs'
+      - 'src/stream.rs'
+      - 'src/random.rs'
+      - 'tests/envelope_oracle.rs'
+      - 'tests/chunked_oracle.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
@@ -82,6 +90,9 @@ jobs:
           - dp_lattice_oracle
           - dp_noise_oracle
           - dp_cost_model
+          # the envelope and chunked AEAD formats, which browser and edge consumers seal and open
+          - envelope_oracle
+          - chunked_oracle
     steps:
       - uses: actions/checkout@v5
       # the toolchain and its wasm32-wasip1 target come from rust-toolchain.toml (the pin);

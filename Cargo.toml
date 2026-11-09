@@ -12,7 +12,12 @@ categories = ["cryptography", "no-std"]
 
 [features]
 default = ["std"]
-std = ["alloc", "blake3/std", "chacha20poly1305/std", "getrandom/std", "sha2/std", "hmac/std", "hkdf/std", "aes-gcm/std"]
+std = ["alloc", "rng", "blake3/std", "chacha20poly1305/std", "getrandom?/std", "sha2/std", "hmac/std", "hkdf/std", "aes-gcm/std"]
+# The operating system's random source (getrandom): key, nonce and share generation, `random::fill`, the
+# HPKE sender, `SecureRng::try_from_entropy` and the chunked sealer's prefix. `std` turns it on; without it
+# (`default-features = false`) the hashes, MACs, KDFs, AEADs with a given key, envelope and dp from a key
+# build on every target (wasm32-unknown-unknown included) and no getrandom is linked
+rng = ["dep:getrandom"]
 alloc = ["blake3/traits-preview"]
 # Deprecated no-op, removed in 0.5.0: the crate never exported a C ABI, and the
 # cdylib output it belonged to was dropped in 0.4.1. Kept so `features = ["ffi"]`
@@ -20,7 +25,7 @@ alloc = ["blake3/traits-preview"]
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
 # 詳細 https://docs.rs/getrandom/0.2/getrandom/macro.register_custom_getrandom.html
-custom-rng = ["getrandom/custom"]
+custom-rng = ["rng", "getrandom/custom"]
 # wasm32-unknown-unknown in a JavaScript environment (a browser or Node): the OS random source comes from
 # `crypto.getRandomValues` through getrandom's `js` backend (wasm-bindgen; no effect on other targets)
 wasm-js = ["std", "getrandom/js"]
@@ -33,7 +38,7 @@ chacha20poly1305 = { version = "0.10", default-features = false, features = ["al
 # 持つと同じ法則の写しが 2 つになるので、実装は 1 つに寄せる
 chacha20 = { version = "0.9", default-features = false }
 # OS の乱数: 鍵・nonce・秘密分散の係数と、`dp` の鍵 (seed を渡さない時) を作る
-getrandom = { version = "0.2", default-features = false }
+getrandom = { version = "0.2", default-features = false, optional = true }
 # 秘密を落とす時の 0 埋めに使う 手書きの `*b = 0` は「以降読まれない書き込み」として
 # 消されうるので、volatile write + fence を持つ実装に任せる
 # (chacha20poly1305 が既に引いているので依存木は増えない)

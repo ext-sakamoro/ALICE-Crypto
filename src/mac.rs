@@ -41,6 +41,7 @@ impl MacKey {
         Ok(key)
     }
 
+    #[cfg(feature = "rng")]
     /// A new random key from the operating system's random source.
     ///
     /// # Errors

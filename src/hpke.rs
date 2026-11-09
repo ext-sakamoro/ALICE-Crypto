@@ -146,6 +146,7 @@ fn key_schedule(shared: &[u8; 32], info: &[u8]) -> Context {
     out
 }
 
+#[cfg(feature = "rng")]
 /// Base-mode setup for a sender with a fresh random ephemeral key: (`enc`, sending context).
 ///
 /// # Errors

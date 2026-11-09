@@ -73,6 +73,7 @@ impl Drop for Key {
 impl Key {
     pub const SIZE: usize = 32;
 
+    #[cfg(feature = "rng")]
     /// # Errors
     ///
     /// Returns [`CipherError::RandomFailed`] if entropy generation fails.
@@ -140,6 +141,7 @@ pub struct Nonce(pub [u8; 24]);
 impl Nonce {
     pub const SIZE: usize = 24;
 
+    #[cfg(feature = "rng")]
     /// # Errors
     ///
     /// Returns [`CipherError::RandomFailed`] if entropy generation fails.
@@ -300,6 +302,7 @@ pub fn decrypt_in_place_aead(
 // Convenience: Allocating wrappers (use in-place core)
 // ============================================================================
 
+#[cfg(feature = "rng")]
 /// Convenience: encrypt with random nonce, prepend nonce to output
 ///
 /// Output format: `[nonce 24B][ciphertext][tag 16B]`
@@ -349,6 +352,7 @@ pub fn open(key: &Key, sealed: &[u8]) -> Result<Vec<u8>, CipherError> {
     Ok(buffer)
 }
 
+#[cfg(feature = "rng")]
 /// Convenience: [`seal`] with associated data
 ///
 /// The associated data is authenticated but not encrypted and not stored in

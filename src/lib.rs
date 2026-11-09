@@ -138,9 +138,11 @@ pub use dp::{
     SecureRng, RR_MAX_EPSILON_WHOLE,
 };
 pub use envelope::{
-    envelope_key_id, open_envelope, reseal_envelope, seal_envelope, EnvelopeError,
-    ENVELOPE_HEADER_SIZE, ENVELOPE_OVERHEAD, ENVELOPE_VERSION,
+    envelope_key_id, open_envelope, EnvelopeError, ENVELOPE_HEADER_SIZE, ENVELOPE_OVERHEAD,
+    ENVELOPE_VERSION,
 };
+#[cfg(feature = "rng")]
+pub use envelope::{reseal_envelope, seal_envelope};
 pub use gf256::{batch_inv, batch_inv_stack, GF};
 pub use hash::{derive_key, hash, keyed_hash, Hash, Hasher};
 pub use kdf::{
@@ -154,7 +156,9 @@ pub use keystore::{
 pub use semantics::CRYPTO_SEMANTICS_ID;
 #[allow(deprecated)]
 pub use signature::{sign, verify, Signature, SignatureError, SigningKey, VerifyingKey};
-pub use sss::{recover, split, Shard, SssError};
+#[cfg(feature = "rng")]
+pub use sss::split;
+pub use sss::{recover, Shard, SssError};
 pub use stream::{
     decrypt_in_place,
     decrypt_in_place_aead,
@@ -164,13 +168,13 @@ pub use stream::{
     open,
     open_with_aad,
     // Convenience: Allocating wrappers
-    seal,
-    seal_with_aad,
     CipherError,
     Key,
     Nonce,
     TAG_SIZE,
 };
+#[cfg(feature = "rng")]
+pub use stream::{seal, seal_with_aad};
 
 /// Version (always the built crate's `CARGO_PKG_VERSION`)
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -5,6 +5,14 @@
 # this crate); its tests; the dependency versions and the toolchain
 src/dp.rs
 tests/dp_*.rs
+# envelope and chunked: their modules, the stream cipher and random source they call, and
+# their oracles
+src/envelope.rs
+src/chunked.rs
+src/stream.rs
+src/random.rs
+tests/envelope_oracle.rs
+tests/chunked_oracle.rs
 Cargo.toml
 Cargo.lock
 rust-toolchain.toml

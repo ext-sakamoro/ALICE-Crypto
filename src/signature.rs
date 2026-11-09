@@ -35,6 +35,7 @@ impl SigningKey {
         Self(bytes)
     }
 
+    #[cfg(feature = "rng")]
     /// ランダム生成。
     ///
     /// # Errors

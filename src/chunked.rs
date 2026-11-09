@@ -170,6 +170,7 @@ fn check_chunk_size(size: u32) -> Result<()> {
     }
 }
 
+#[cfg(feature = "rng")]
 fn header(key_id: u32, chunk_size: u32, prefix: &[u8; NONCE_PREFIX_SIZE]) -> [u8; HEADER_SIZE] {
     let mut h = [0u8; HEADER_SIZE];
     h[0] = CHUNKED_VERSION;
@@ -230,6 +231,7 @@ pub struct ChunkSealer {
 }
 
 impl ChunkSealer {
+    #[cfg(feature = "rng")]
     /// A sealer with a nonce prefix drawn from the operating system.
     ///
     /// `aad` is bound to every chunk (after the header).
@@ -248,6 +250,7 @@ impl ChunkSealer {
         Self::with_prefix(key, key_id, aad, chunk_size, prefix)
     }
 
+    #[cfg(feature = "rng")]
     /// A sealer with a given nonce prefix (only for comparing with reference
     /// vectors: a prefix used twice under one key repeats the keystream)
     pub(crate) fn with_prefix(

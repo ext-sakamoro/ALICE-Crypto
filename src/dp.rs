@@ -231,6 +231,7 @@ impl SecureRng {
         rng
     }
 
+    #[cfg(feature = "rng")]
     /// Take a key from the OS entropy source
     ///
     /// # Errors
@@ -883,6 +884,7 @@ impl DpNoise {
         Self::build(sensitivity, epsilon, SecureRng::from_key(key))
     }
 
+    #[cfg(feature = "rng")]
     /// Take the key from the OS entropy source
     ///
     /// # Errors

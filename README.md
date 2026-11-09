@@ -48,7 +48,8 @@ alice-crypto = { version = "0.1" }
 
 | Feature | Default | Description |
 |---------|---------|-------------|
-| `std` | yes | Standard library support (enables OS RNG, std I/O) |
+| `std` | yes | Standard library support (implies `rng`, std I/O) |
+| `rng` | via `std` | The operating system's random source (`getrandom`): key, nonce and share generation, `random::fill`, sealing with a fresh nonce, the HPKE sender, `try_from_entropy`. Without it no `getrandom` is linked and the hashes, MACs, KDFs, AEADs with a given nonce, opening and dp from a key build on every target |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
 | `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below) |
@@ -59,6 +60,14 @@ For `no_std` environments (embedded, RTOS, WASM):
 ```toml
 [dependencies]
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc"] }
+```
+
+Hash, MAC and KDF only (SHA-256, HMAC, HKDF, BLAKE3), on any target including `wasm32-unknown-unknown`, with no
+OS random source linked:
+
+```toml
+[dependencies]
+alice-crypto = { version = "0.6", default-features = false }
 ```
 
 Bare-metal targets that `getrandom` does not support (e.g. `thumbv7em-none-eabihf`)

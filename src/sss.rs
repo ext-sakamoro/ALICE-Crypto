@@ -204,8 +204,10 @@ pub(crate) fn check_share_len(len: usize) -> Result<u32, SssError> {
     u32::try_from(len).map_err(|_| SssError::SecretTooLong)
 }
 
+#[cfg(feature = "rng")]
 const RNG_BUF_SIZE: usize = 1024;
 
+#[cfg(feature = "rng")]
 /// Split a secret into N shards, requiring K to recover.
 ///
 /// # Security
@@ -448,6 +450,7 @@ pub fn recover(shards: &[Shard]) -> Result<Zeroizing<Vec<u8>>, SssError> {
     Ok(secret)
 }
 
+#[cfg(feature = "rng")]
 /// Horner's method for stack slice
 #[inline(always)]
 fn eval_poly_stack(coeffs: &[GF], x: GF) -> GF {

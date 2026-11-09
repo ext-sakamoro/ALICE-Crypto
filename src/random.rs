@@ -8,6 +8,7 @@
 //! When the OS source fails, [`fill`] returns [`RngError::Unavailable`]. It never falls back to a seeded stream,
 //! a clock or a constant; the caller must stop.
 
+#[cfg(feature = "rng")]
 /// Fills `buf` with bytes from the operating system's random source.
 ///
 /// # Errors

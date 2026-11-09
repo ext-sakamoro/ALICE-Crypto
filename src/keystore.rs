@@ -99,6 +99,7 @@ impl KeyStore {
         self
     }
 
+    #[cfg(feature = "rng")]
     /// 新しい鍵を生成してストアに追加。
     ///
     /// # Arguments
@@ -164,6 +165,7 @@ impl KeyStore {
         id
     }
 
+    #[cfg(feature = "rng")]
     /// 鍵ローテーション: 新しい鍵を生成し、旧鍵を保持。
     ///
     /// # Errors
