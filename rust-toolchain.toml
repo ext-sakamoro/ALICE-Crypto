@@ -4,6 +4,6 @@
 [toolchain]
 channel = "1.98.1"
 components = ["rustfmt", "clippy"]
-# no_std 検証用 target (CI no_std job + local、pinned toolchain 側に install)
-targets = ["thumbv7em-none-eabihf", "wasm32-unknown-unknown"]
+# no_std 検証用 target (CI no_std job + local) と dp を wasmtime で走らせる wasm32-wasip1 (wasm-dp.yml)、pinned toolchain 側に install
+targets = ["thumbv7em-none-eabihf", "wasm32-unknown-unknown", "wasm32-wasip1"]
 profile = "minimal"

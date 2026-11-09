@@ -84,9 +84,10 @@ jobs:
           - dp_cost_model
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
+      # the toolchain and its wasm32-wasip1 target come from rust-toolchain.toml (the pin);
+      # a target installed on another toolchain is not seen by cargo here
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: wasm-dp
