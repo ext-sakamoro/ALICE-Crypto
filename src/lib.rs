@@ -130,6 +130,8 @@ pub mod hash;
 pub mod hpke;
 #[cfg(feature = "kdf")]
 pub mod kdf;
+#[cfg(feature = "aead")]
+pub mod key_ops;
 pub mod keystore;
 #[cfg(feature = "hash")]
 pub mod mac;
@@ -166,6 +168,8 @@ pub use kdf::{
     argon2id, argon2id_with, password_stretch, Argon2Params, HkdfBlake3, KdfError, Prk,
     ARGON2_MIN_SALT,
 };
+#[cfg(feature = "aead")]
+pub use key_ops::{AsyncKeyOps, KeyOps, KeyOpsError};
 pub use keystore::{KeyEntry, KeyGeneration, KeyId, KeyProviderError, KeyStore, KeyStoreError};
 #[cfg(feature = "aead")]
 pub use keystore::{KeyProvider, KeyStoreProvider};
