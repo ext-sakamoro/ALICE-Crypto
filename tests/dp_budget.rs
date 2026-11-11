@@ -205,6 +205,41 @@ fn a_sum_is_charged_its_effective_epsilon() {
 }
 
 #[test]
+fn a_release_past_the_delta_budget_is_refused() {
+    // ε is ample (10) and δ = 15 · 2^-104 holds 2.5 Laplace releases of k = 1: the third release fits ε and is
+    // refused on δ alone, changing neither the budget nor the random source; units from `scripts/dp_budget_exact.py`
+    // (delta lines)
+    let delta = 15.0 * f64::from_bits(919 << 52); // 2^-104: biased exponent 919
+    let mut b = PrivacyBudget::new(10.0, delta).unwrap();
+    assert_eq!(b.delta_limit_units(), 251658240);
+    let mut rng = SecureRng::from_key(KEY);
+    let mut twin = SecureRng::from_key(KEY);
+    for _ in 0..2 {
+        b.count(10, 0.5, &mut rng).unwrap();
+        dp_count(10, 0.5, &mut twin).unwrap();
+    }
+    assert_eq!(b.epsilon_spent_units(), 18446744073709551616);
+    assert_eq!(b.delta_spent_units(), 201326592);
+    let before = b.clone();
+    assert_eq!(
+        b.count(10, 0.5, &mut rng),
+        Err(BudgetError::Exceeded {
+            epsilon_cost: 9223372036854775808,
+            epsilon_left: 166020696663385964544,
+            delta_cost: 100663296,
+            delta_left: 50331648,
+        })
+    );
+    assert_eq!(b, before, "the budget is unchanged");
+    assert_eq!(b.releases(), 2);
+    assert_eq!(
+        rng.next_u64(),
+        twin.next_u64(),
+        "the random source is unchanged"
+    );
+}
+
+#[test]
 fn a_sum_scaled_up_is_rounded_up_exactly() {
     // ε_eff · 2^64 is reached with a left shift here and is not a whole number of units: the charge is the
     // ceiling, from `scripts/dp_budget_exact.py` (single sum lines)

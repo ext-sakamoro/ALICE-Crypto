@@ -37,6 +37,14 @@ RELEASES = [
     ("count", {"epsilon": 0.2}),  # past the budget: refused
     ("count", {"epsilon": 0.1}),  # fits what is left
 ]
+# a budget whose δ runs out while ε is still left (tests/dp_budget.rs::a_release_past_the_delta_budget_is_refused):
+# δ = 15 · 2^-104 is 2.5 Laplace releases of k = 1, so the third release is refused on δ alone
+DELTA_BUDGET = (10.0, 15 * 2.0**-104)
+DELTA_RELEASES = [
+    ("count", {"epsilon": 0.5}),
+    ("count", {"epsilon": 0.5}),
+    ("count", {"epsilon": 0.5}),  # ε fits, δ does not: refused
+]
 # single sum releases whose ε_eff · 2^64 is reached with a left shift (tests/dp_budget.rs::
 # a_sum_scaled_up_is_rounded_up_exactly): each is a non-integer number of units, so rounding down would show
 SINGLE_SUMS = [(0.75, 2.0), (3.0, 7.0)]
@@ -75,14 +83,15 @@ def exp_upper(x: F, terms: int = 60) -> F:
     return s + 2 * t
 
 
-def main() -> int:
-    eps_limit = math.floor(F(BUDGET[0]) * EPS_UNIT)
-    delta_limit = math.floor(F(BUDGET[1]) * DELTA_UNIT)
+def simulate(label: str, budget: tuple[float, float], releases: list) -> int | None:
+    """the releases against the budget; the number compared, None on a failed bound"""
+    eps_limit = math.floor(F(budget[0]) * EPS_UNIT)
+    delta_limit = math.floor(F(budget[1]) * DELTA_UNIT)
     eps_spent = delta_spent = 0
     made = 0
     compared = 0
-    print(f"budget eps_units={eps_limit} delta_units={delta_limit}")
-    for kind, p in RELEASES:
+    print(f"{label} budget eps_units={eps_limit} delta_units={delta_limit}")
+    for kind, p in releases:
         e_eff = eps_eff(kind, p)
         e_units = ceil_div(e_eff * EPS_UNIT)
         k = ceil_div(F(e_units * 14427, 10000 * EPS_UNIT))
@@ -92,19 +101,32 @@ def main() -> int:
         true_delta = (1 + exp_upper(e_eff)) * F(1, 2**eta_bits)
         if not true_delta <= F(d_units, DELTA_UNIT):
             print(f"FAIL {kind} {p}: the δ charge does not bound (1 + e^ε) η", file=sys.stderr)
-            return 1
+            return None
         if not F(e_units, EPS_UNIT) >= e_eff:
             print(f"FAIL {kind} {p}: the ε charge is below ε_eff", file=sys.stderr)
-            return 1
-        fits = e_units <= eps_limit - eps_spent and d_units <= delta_limit - delta_spent
+            return None
+        eps_fits = e_units <= eps_limit - eps_spent
+        delta_fits = d_units <= delta_limit - delta_spent
+        fits = eps_fits and delta_fits
         if fits:
             eps_spent += e_units
             delta_spent += d_units
             made += 1
         compared += 1
-        print(f"{kind} {p} eps_units={e_units} delta_units={d_units} {'made' if fits else 'refused'}")
-    print(f"spent eps_units={eps_spent} delta_units={delta_spent} releases={made}")
-    print(f"left eps_units={eps_limit - eps_spent} delta_units={delta_limit - delta_spent}")
+        why = "made" if fits else ("refused on delta only" if eps_fits else "refused")
+        print(f"{label} {kind} {p} eps_units={e_units} delta_units={d_units} {why}")
+    print(f"{label} spent eps_units={eps_spent} delta_units={delta_spent} releases={made}")
+    print(f"{label} left eps_units={eps_limit - eps_spent} delta_units={delta_limit - delta_spent}")
+    return compared
+
+
+def main() -> int:
+    compared = 0
+    for label, budget, releases in (("seq", BUDGET, RELEASES), ("delta", DELTA_BUDGET, DELTA_RELEASES)):
+        n = simulate(label, budget, releases)
+        if n is None:
+            return 1
+        compared += n
     for sensitivity, epsilon in SINGLE_SUMS:
         e_eff = eps_eff("sum", {"sensitivity": sensitivity, "epsilon": epsilon})
         scaled = e_eff * EPS_UNIT
