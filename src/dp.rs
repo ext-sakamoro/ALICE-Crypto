@@ -137,6 +137,8 @@
 //! assert_eq!(dp_count(1_000, 1.0, &mut again).unwrap(), noisy);
 //! ```
 
+pub mod budget;
+
 use chacha20::cipher::{KeyIvInit, StreamCipher, StreamCipherSeek};
 use chacha20::ChaCha20;
 use zeroize::Zeroize;
