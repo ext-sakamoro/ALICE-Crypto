@@ -201,6 +201,24 @@ class = "mac and keys"
 reason = "MAC tag (BLAKE3 keyed hash), key, context and message bytes: no differential-privacy value"
 
 [[function]]
+file = "src/recovery_code.rs"
+name = "from_entropy"
+class = "ciphertext and keys"
+reason = "the 16 random bytes of a recovery code, taken as input: key material, no differential-privacy value"
+
+[[function]]
+file = "src/recovery_code.rs"
+name = "seal_secret"
+class = "ciphertext and keys"
+reason = "a secret sealed under a recovery code (version, salt, nonce, ciphertext, tag), the secret and its associated data: no differential-privacy value"
+
+[[function]]
+file = "src/recovery_code.rs"
+name = "open_secret"
+class = "ciphertext and keys"
+reason = "a secret sealed under a recovery code (version, salt, nonce, ciphertext, tag), the secret and its associated data: no differential-privacy value"
+
+[[function]]
 file = "src/signature.rs"
 name = "from_bytes"
 class = "signature and keys"
