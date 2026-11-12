@@ -53,7 +53,7 @@ alice-crypto = { version = "0.1" }
 | `full` | via `std` | Every module feature below |
 | `hash` | via `full` | BLAKE3 (`hash`) and the modules on it: `mac`, `signature`, `sss` |
 | `sha256` | via `full` | SHA-256, HMAC-SHA256, HKDF-SHA256 (`sha256`) |
-| `aead` | via `full` | `stream`, `chacha20poly1305_ietf`, `aes_gcm`, `aead`, `envelope`, `chunked`, and `KeyProvider` |
+| `aead` | via `full` | `stream`, `chacha20poly1305_ietf`, `aes_gcm`, `aead`, `envelope`, `chunked`, `KeyProvider`, and with `sha256` `recovery_code` |
 | `kdf` | via `full` | Argon2id and HKDF-BLAKE3 (`kdf`, implies `hash`) |
 | `x25519` | via `full` | X25519 (`x25519`) |
 | `hpke` | via `full` | HPKE base mode (`hpke`, implies `aead`, `sha256`, `x25519`) |
