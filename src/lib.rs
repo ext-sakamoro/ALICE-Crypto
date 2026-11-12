@@ -169,7 +169,7 @@ pub use kdf::{
     ARGON2_MIN_SALT,
 };
 #[cfg(feature = "aead")]
-pub use key_ops::{AsyncKeyOps, KeyOps, KeyOpsError};
+pub use key_ops::{AsyncKeyOps, KeyOps, KeyOpsError, MaybeSend, MaybeSync};
 pub use keystore::{KeyEntry, KeyGeneration, KeyId, KeyProviderError, KeyStore, KeyStoreError};
 #[cfg(feature = "aead")]
 pub use keystore::{KeyProvider, KeyStoreProvider};

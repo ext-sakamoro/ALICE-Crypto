@@ -23,6 +23,8 @@
 - **検査 B**: 定数時間を名乗る関数の中に、**値に依存する早期 return / `continue` /
   `break`** が無いこと (長さ・容量の検査は公開値なので許す)
 - **検査 C**: 比較対象が 0 件なら fail (空振りを成功と読ませない)
+- **検査 E**: tag を照合する関数 (`verify_mac`) の本体は `==` / `!=` を持たず `ct_eq_tag` を
+  呼ぶ (比較件数 0 も fail)
 - **検査 D**: 直前に `// CONSTANT-TIME:` の印がある関数 (`dp` の sampler) は、本体に
   `if` / `while` / `loop` / `match` / `?` / `return` / `break` / `continue` を一切持たない
   (分岐は mask の選択で、反復は固定回数の `for` で書く) 印の付いた関数の名前は
@@ -223,6 +225,62 @@ def check_marked_functions(files: list[Path]) -> tuple[list[str], list[str]]:
     return problems, names
 
 
+# 検査 E: 計算した tag と受け取った tag を照合する関数は、`==` / `!=` を使わず
+# `ct_eq_tag` (全 byte を比べる) を呼ぶ 時間は unit test で測れないので、書き方で止める
+TAG_VERIFY_FNS = ("verify_mac",)
+CT_TAG_CALL = "ct_eq_tag("
+
+
+def fn_bodies(text: str, name: str) -> list[tuple[int, str]]:
+    """`fn <name>(` の本体 (`{ … }`) を (開始行, 本体の文字列) で返す 宣言だけ (`;` で終わる) は除く
+
+    signature の中の `;` (`[u8; 32]`) は括弧の深さで飛ばす comment は行ごとに落とす
+    """
+    code = "\n".join(strip_comments(l) for l in text.split("\n"))
+    out: list[tuple[int, str]] = []
+    for m in re.finditer(rf"\bfn\s+{re.escape(name)}\s*[<(]", code):
+        i, depth = m.end(), 0
+        while i < len(code):
+            c = code[i]
+            if c in "([<":
+                depth += 1
+            elif c in ")]>":
+                depth -= 1
+            elif depth <= 0 and c in "{;":
+                break
+            i += 1
+        if i >= len(code) or code[i] == ";":
+            continue
+        start, braces = i, 0
+        while i < len(code):
+            braces += {"{": 1, "}": -1}.get(code[i], 0)
+            i += 1
+            if braces == 0:
+                break
+        out.append((code[: m.start()].count("\n") + 1, code[start:i]))
+    return out
+
+
+def check_tag_comparisons(files: list[Path]) -> tuple[list[str], int]:
+    """検査 E: tag を照合する関数の本体に `==` / `!=` が無く、`ct_eq_tag` を呼ぶか"""
+    problems: list[str] = []
+    checked = 0
+    for f in files:
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for name in TAG_VERIFY_FNS:
+            for line, body in fn_bodies(text, name):
+                checked += 1
+                where = f"{f.relative_to(ROOT)}:{line}: `{name}`"
+                if re.search(r"[=!]=", body):
+                    problems.append(
+                        f"{where} が `==` / `!=` で比べている ⇒ 最初の違いで止まる比較は tag の何 byte が"
+                        f"正しいかを時間に出す (`crate::mac::ct_eq_tag` を使う)"
+                    )
+                if CT_TAG_CALL not in body:
+                    problems.append(f"{where} が `ct_eq_tag` を呼んでいない")
+    return problems, checked
+
+
 def check_baseline(names: list[str]) -> list[str]:
     """印の付いた関数の名前が baseline と一致するか"""
     if not BASELINE.exists():
@@ -250,24 +308,26 @@ def main() -> int:
     b_problems, b_checked = check_early_returns(files)
     d_problems, marked = check_marked_functions(files)
     d_problems += check_baseline(marked)
+    e_problems, e_checked = check_tag_comparisons(files)
 
     if args.list:
         print(
             f"src {len(files)} file / 秘密型の derive {a_checked} 件 / 定数時間 fn {b_checked} 件 / "
-            f"印の付いた fn {len(marked)} 件"
+            f"印の付いた fn {len(marked)} 件 / tag を照合する fn {e_checked} 件"
         )
         return 0
 
     # 検査 C: 空振りを成功と読ませない
-    if a_checked == 0 or b_checked == 0 or not marked:
+    if a_checked == 0 or b_checked == 0 or not marked or e_checked == 0:
         print(
-            f"constant-time guard: 比較件数 0 (秘密型 {a_checked} / fn {b_checked} / 印 {len(marked)}) "
+            f"constant-time guard: 比較件数 0 (秘密型 {a_checked} / fn {b_checked} / 印 {len(marked)} / "
+            f"tag 照合 {e_checked}) "
             f"— 検査が成立していない (SECRET_TYPES / CONSTANT_TIME_FNS と実装の名前を突き合わせる)",
             file=sys.stderr,
         )
         return 2
 
-    problems = a_problems + b_problems + d_problems
+    problems = a_problems + b_problems + d_problems + e_problems
     if problems:
         print(f"constant-time guard: {len(problems)} 件", file=sys.stderr)
         for p in problems:
@@ -275,7 +335,7 @@ def main() -> int:
         return 1
     print(
         f"constant-time guard: OK (秘密型 {a_checked} 件 / 定数時間 fn {b_checked} 件 / "
-        f"印の付いた fn {len(marked)} 件を検査)"
+        f"印の付いた fn {len(marked)} 件 / tag を照合する fn {e_checked} 件を検査)"
     )
     return 0
 
