@@ -5,5 +5,8 @@ package = "alice-crypto"
 manifest = "Cargo.toml"
 tags = ["v{version}", "alice-crypto-v{version}"]
 
+[exempt]
+ALPHABET = "the 32 characters of the recovery code's base32 alphabet (src/recovery_code.rs), a text table, not a semantics identifier"
+
 [[id]]
 path = "alice_crypto::semantics::CRYPTO_SEMANTICS_ID"
