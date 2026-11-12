@@ -1,20 +1,21 @@
 //! Oracle for the recovery code (`alice_crypto::recovery_code`).
 //!
 //! The text form and the sealed layout are checked against an encoder and an opener written here from the module
-//! docs with the `sha2`, `hkdf` and `chacha20poly1305` crates directly, not with the code under test: the check is
-//! the first 10 bits of SHA-256(context || entropy), the key HKDF-SHA256(salt, entropy, info), the AEAD
-//! XChaCha20-Poly1305 over version || salt || aad. Every refusal test counts what it compared and fails on 0.
+//! docs, not with the code under test: GF(32) by carry-less multiplication reduced by x⁵ + x² + 1 (the module
+//! multiplies by shift-and-add), the key HKDF-SHA256(salt, entropy, info) and the AEAD XChaCha20-Poly1305 over
+//! version || salt || aad with the `hkdf` and `chacha20poly1305` crates directly. The typo properties (every single
+//! substitution, every adjacent swap of unequal characters, a set padding bit) are checked on the text alone, so
+//! they hold whichever encoder is right. Every refusal test counts what it compared and fails on 0.
 
 use alice_crypto::recovery_code::{
     open_secret, seal_secret, RecoveryCode, RecoveryCodeError, RECOVERY_BLOB_OVERHEAD,
-    RECOVERY_BLOB_VERSION, RECOVERY_CODE_CHECK_CONTEXT, RECOVERY_CODE_ENTROPY,
-    RECOVERY_CODE_KEY_INFO, RECOVERY_CODE_LEN,
+    RECOVERY_BLOB_VERSION, RECOVERY_CODE_ENTROPY, RECOVERY_CODE_KEY_INFO, RECOVERY_CODE_LEN,
 };
 use chacha20poly1305::{
     aead::{Aead, KeyInit, Payload},
     XChaCha20Poly1305, XNonce,
 };
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 
 const ALPHABET: &[u8; 32] = b"0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -25,26 +26,51 @@ fn entropy(seed: u8) -> [u8; RECOVERY_CODE_ENTROPY] {
     })
 }
 
+/// Product in GF(32): carry-less multiplication, then reduction by x⁵ + x² + 1
+fn gf_mul(a: u8, b: u8) -> u8 {
+    let mut p: u16 = 0;
+    for i in 0..5 {
+        if b >> i & 1 == 1 {
+            p ^= u16::from(a) << i;
+        }
+    }
+    for i in (5..9).rev() {
+        if p >> i & 1 == 1 {
+            p ^= 0b10_0101 << (i - 5);
+        }
+    }
+    p as u8
+}
+
+/// α^n (α = x)
+fn alpha_pow(n: usize) -> u8 {
+    (0..n).fold(1u8, |a, _| gf_mul(a, 2))
+}
+
+/// The 26 data symbols then the 2 check symbols of `data`
+fn with_checks(data: &[u8; 26]) -> [u8; 28] {
+    let mut out = [0u8; 28];
+    out[..26].copy_from_slice(data);
+    for (i, &v) in data.iter().enumerate() {
+        out[26] ^= v;
+        out[27] ^= gf_mul(alpha_pow(i + 1), v);
+    }
+    out
+}
+
+fn symbols_text(sym: &[u8; 28]) -> String {
+    sym.iter()
+        .map(|&v| ALPHABET[usize::from(v)] as char)
+        .collect()
+}
+
 /// The 28 characters for `e`, from the module docs
 fn reference_text(e: &[u8; RECOVERY_CODE_ENTROPY]) -> String {
-    let mut h = Sha256::new();
-    h.update(RECOVERY_CODE_CHECK_CONTEXT);
-    h.update(e);
-    let d = h.finalize();
-    let check = (u16::from(d[0]) << 2) | u16::from(d[1] >> 6);
-    // 128 + 10 + 2 = 140 bits, most significant first
-    let mut bits: Vec<bool> = e
-        .iter()
-        .flat_map(|b| (0..8).rev().map(move |i| b >> i & 1 == 1))
-        .collect();
-    bits.extend((0..10).rev().map(|i| check >> i & 1 == 1));
-    bits.extend([false, false]);
-    bits.chunks(5)
-        .map(|c| {
-            let v = c.iter().fold(0usize, |a, &b| a << 1 | usize::from(b));
-            ALPHABET[v] as char
-        })
-        .collect()
+    let mut data = [0u8; 26];
+    for bit in 0..128 {
+        data[bit / 5] |= (e[bit / 8] >> (7 - bit % 8) & 1) << (4 - bit % 5);
+    }
+    symbols_text(&with_checks(&data))
 }
 
 fn grouped(text: &str) -> String {
@@ -127,6 +153,44 @@ fn every_single_character_change_is_refused() {
     assert_eq!(compared, 5 * RECOVERY_CODE_LEN * 31);
 }
 
+/// Every swap of two different neighbouring characters is refused (positions 0..27, check characters included)
+#[test]
+fn every_adjacent_swap_of_unequal_characters_is_refused() {
+    let mut compared = 0;
+    for seed in 0..=255u8 {
+        let text = reference_text(&entropy(seed));
+        let b = text.as_bytes();
+        for i in 0..RECOVERY_CODE_LEN - 1 {
+            if b[i] == b[i + 1] {
+                continue;
+            }
+            let mut w = b.to_vec();
+            w.swap(i, i + 1);
+            let t = String::from_utf8(w).expect("ascii");
+            assert!(
+                RecoveryCode::parse(&t).is_err(),
+                "seed {seed}: swap at {i} was read"
+            );
+            compared += 1;
+        }
+    }
+    assert!(compared > 256 * 20, "compared {compared}");
+}
+
+/// The field the check lives in: α = x has order 31 under x⁵ + x² + 1 (it is primitive), so the weights
+/// α¹ … α²⁸ of the 28 positions are distinct and non-zero
+#[test]
+fn alpha_is_primitive_and_the_position_weights_are_distinct() {
+    let order = (1..=31).find(|&n| alpha_pow(n) == 1).expect("an order");
+    assert_eq!(order, 31);
+    let weights: Vec<u8> = (1..=28).map(alpha_pow).collect();
+    let mut sorted = weights.clone();
+    sorted.sort_unstable();
+    sorted.dedup();
+    assert_eq!(sorted.len(), 28);
+    assert!(weights.iter().all(|&w| w != 0));
+}
+
 #[test]
 fn malformed_text_is_refused_with_its_reason() {
     let text = reference_text(&entropy(9));
@@ -149,17 +213,23 @@ fn malformed_text_is_refused_with_its_reason() {
         RecoveryCode::parse(core::str::from_utf8(&b).expect("ascii")).map(|_| ()),
         Err(RecoveryCodeError::Character { position: 5 })
     );
-    // a padding bit set: the last character carries the 2 padding bits in its low bits
-    let mut b = text.into_bytes();
-    let last = ALPHABET
-        .iter()
-        .position(|&c| c == b[27])
-        .expect("in alphabet");
-    b[27] = ALPHABET[last | 1];
-    assert_eq!(
-        RecoveryCode::parse(core::str::from_utf8(&b).expect("ascii")).map(|_| ()),
-        Err(RecoveryCodeError::Check)
-    );
+    // a padding bit set with both checks recomputed: the low 2 bits of the 26th symbol are padding, so a set one
+    // is refused and every code has exactly one text
+    let e = entropy(9);
+    let mut data = [0u8; 26];
+    for bit in 0..128 {
+        data[bit / 5] |= (e[bit / 8] >> (7 - bit % 8) & 1) << (4 - bit % 5);
+    }
+    for pad in 1..4u8 {
+        let mut d = data;
+        d[25] |= pad;
+        let t = symbols_text(&with_checks(&d));
+        assert_eq!(
+            RecoveryCode::parse(&t).map(|_| ()),
+            Err(RecoveryCodeError::Check),
+            "padding {pad}"
+        );
+    }
 }
 
 #[test]

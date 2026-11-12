@@ -233,6 +233,44 @@ const RNG_BUF_SIZE: usize = 1024;
     reason = "secret material generation, not Law output: the random polynomial coefficients must be unpredictable, and no Law-bearing result is computed from them"
 )]
 pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
+    let mut split_id = [0u8; SPLIT_ID_LEN];
+    if getrandom::getrandom(&mut split_id).is_err() {
+        return Err(SssError::RandomFailed);
+    }
+    // the coefficients come from a buffered OS random source (fewer system calls than one per byte)
+    let mut rng_buf = Zeroizing::new([0u8; RNG_BUF_SIZE]);
+    let mut rng_idx = RNG_BUF_SIZE;
+    split_with(secret, n, k, split_id, &mut |out: &mut [u8]| {
+        let mut filled = 0;
+        while filled < out.len() {
+            if rng_idx >= RNG_BUF_SIZE {
+                if getrandom::getrandom(rng_buf.as_mut()).is_err() {
+                    return false;
+                }
+                rng_idx = 0;
+            }
+            let take = (out.len() - filled).min(RNG_BUF_SIZE - rng_idx);
+            out[filled..filled + take].copy_from_slice(&rng_buf[rng_idx..rng_idx + take]);
+            rng_idx += take;
+            filled += take;
+        }
+        true
+    })
+}
+
+#[cfg(feature = "rng")]
+/// [`split`] with the split id and the random coefficients given by the caller: `fill` writes the k−1 coefficients
+/// of the next secret byte's polynomial (constant term excluded) and returns `false` when it has none.
+///
+/// `split` is this with the operating system's random source; the exact-threshold test enumerates every
+/// coefficient through it.
+fn split_with(
+    secret: &[u8],
+    n: u8,
+    k: u8,
+    split_id: [u8; SPLIT_ID_LEN],
+    fill: &mut dyn FnMut(&mut [u8]) -> bool,
+) -> Result<Vec<Shard>, SssError> {
     if secret.is_empty() {
         return Err(SssError::EmptySecret);
     }
@@ -246,12 +284,6 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
         return Err(SssError::TooManyShards);
     }
     check_share_len(secret.len())?;
-    let mut split_id = [0u8; SPLIT_ID_LEN];
-    if getrandom::getrandom(&mut split_id).is_err() {
-        return Err(SssError::RandomFailed);
-    }
-
-    // Pre-allocate output shards
     let mut shards: Vec<Shard> = (1..=n)
         .map(|x| Shard {
             x,
@@ -260,86 +292,29 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
             y: Vec::with_capacity(secret.len()),
         })
         .collect();
-
-    // Random number generator buffer
-    let mut rng_buf = [0u8; RNG_BUF_SIZE];
-    let mut rng_idx = RNG_BUF_SIZE; // Force refill on first use
-
-    // Stack-allocated coefficients buffer
-    // Layout: [constant_term (secret), rand1, rand2, ..., rand_k-1]
+    // [constant term (the secret byte), random 1 … k−1]
     let mut coeffs = [GF::ZERO; 255];
-    let k_usize = k as usize;
-    let num_random = k_usize - 1;
-
+    let mut random = [0u8; 254];
+    let k_usize = usize::from(k);
     for &s in secret {
-        // 1. Set constant term (secret byte)
         coeffs[0] = GF(s);
-
-        // 2. Fill random coefficients (1 to k-1)
-        // Using buffered RNG to avoid syscall overhead
-        let mut needed = num_random;
-        let mut filled = 0;
-
-        while needed > 0 {
-            // Refill buffer if empty
-            if rng_idx >= RNG_BUF_SIZE {
-                if getrandom::getrandom(&mut rng_buf).is_err() {
-                    // Clear what the buffers already hold before bailing out:
-                    // `coeffs[0]` is a secret byte and the rest is key material.
-                    coeffs.iter_mut().for_each(|c| c.0.zeroize());
-                    rng_buf.zeroize();
-                    return Err(SssError::RandomFailed);
-                }
-                rng_idx = 0;
-            }
-
-            // Copy what we can
-            let available = RNG_BUF_SIZE - rng_idx;
-            let to_copy = core::cmp::min(needed, available);
-
-            for i in 0..to_copy {
-                coeffs[1 + filled + i] = GF(rng_buf[rng_idx + i]);
-            }
-
-            rng_idx += to_copy;
-            filled += to_copy;
-            needed -= to_copy;
+        if !fill(&mut random[..k_usize - 1]) {
+            coeffs.iter_mut().for_each(|c| c.0.zeroize());
+            random.zeroize();
+            return Err(SssError::RandomFailed);
         }
-
-        // 3. Evaluate polynomial for each shard
-        // f(x) = coeffs[0] + coeffs[1]*x + ...
+        for (c, &r) in coeffs[1..k_usize].iter_mut().zip(&random[..k_usize - 1]) {
+            *c = GF(r);
+        }
         for shard in &mut shards {
-            let x = GF(shard.x);
-            let y = eval_poly_stack(&coeffs[..k_usize], x);
+            let y = eval_poly_stack(&coeffs[..k_usize], GF(shard.x));
             shard.y.push(y.0);
         }
     }
-
-    // `coeffs[0]` held each secret byte in turn and `coeffs[1..k]` the random
-    // polynomial coefficients; `rng_buf` holds unconsumed random bytes. None of
-    // it is needed once the shards exist, and leaving it on the stack would let
-    // a later frame observe it.
+    // the secret bytes and the coefficients are not needed once the shards exist
     coeffs.iter_mut().for_each(|c| c.0.zeroize());
-    rng_buf.zeroize();
-
+    random.zeroize();
     Ok(shards)
-}
-
-/// [`split`] with the split id and the random coefficients given by the caller: `fill` writes the k−1 coefficients
-/// of the next secret byte's polynomial (constant term excluded) and returns `false` when it has none.
-///
-/// `split` is this with the operating system's random source; the exact-threshold test enumerates every
-/// coefficient through it.
-#[cfg_attr(not(test), allow(dead_code))]
-fn split_with(
-    secret: &[u8],
-    n: u8,
-    k: u8,
-    split_id: [u8; SPLIT_ID_LEN],
-    fill: &mut dyn FnMut(&mut [u8]) -> bool,
-) -> Result<Vec<Shard>, SssError> {
-    let _ = (secret, n, k, split_id, fill);
-    todo!("STUB: split with given coefficients (device-loss recovery step 2)")
 }
 
 /// Recover the secret from K or more shards.
@@ -511,10 +486,11 @@ mod tests {
             .collect()
     }
 
-    /// Exact threshold (oracle: Shamir's argument, counted): over every secret byte and every choice of the random
-    /// coefficients, each value of the k−1 shares occurs with every secret exactly 256^(k−2) times, so k−1 shares
-    /// say nothing about the secret; and the k shards recover it (checked inside `shares`). k = 2 and k = 3 are
-    /// enumerated in full (2¹⁶ and 2²⁴ splits).
+    /// Exact threshold (oracle: Shamir's argument, counted): for each secret byte the k−1 random coefficients map
+    /// one to one onto the values of the k−1 shares (an invertible Vandermonde system at distinct non-zero x), so
+    /// over every secret and every choice of coefficients each pair (share values, secret) occurs exactly once and
+    /// k−1 shares say nothing about the secret; the k shards recover it (checked inside `shares`). k = 2 and k = 3
+    /// are enumerated in full (2¹⁶ and 2²⁴ splits).
     #[test]
     fn k_minus_one_shares_are_equally_consistent_with_every_secret() {
         for k in [2u8, 3] {
@@ -530,8 +506,7 @@ mod tests {
                     compared += 1;
                 }
             }
-            let each = 256u32.pow(u32::from(k) - 2);
-            assert!(counts.iter().all(|&n| n == each), "k = {k}: not uniform");
+            assert!(counts.iter().all(|&n| n == 1), "k = {k}: not uniform");
             assert_eq!(compared, 256u64.pow(u32::from(k)));
         }
     }
