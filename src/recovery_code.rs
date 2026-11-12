@@ -27,6 +27,8 @@
 //! The code is not stretched (no Argon2): it has 128 bits that no person chose, so guessing it is as hard as
 //! guessing the key. A person's own PIN or password is not a recovery code and has no constructor here.
 
+extern crate alloc;
+use alloc::{string::String, vec::Vec};
 use zeroize::Zeroizing;
 
 /// Characters of a recovery code.
