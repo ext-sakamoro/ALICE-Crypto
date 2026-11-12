@@ -325,6 +325,23 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
     Ok(shards)
 }
 
+/// [`split`] with the split id and the random coefficients given by the caller: `fill` writes the k−1 coefficients
+/// of the next secret byte's polynomial (constant term excluded) and returns `false` when it has none.
+///
+/// `split` is this with the operating system's random source; the exact-threshold test enumerates every
+/// coefficient through it.
+#[cfg_attr(not(test), allow(dead_code))]
+fn split_with(
+    secret: &[u8],
+    n: u8,
+    k: u8,
+    split_id: [u8; SPLIT_ID_LEN],
+    fill: &mut dyn FnMut(&mut [u8]) -> bool,
+) -> Result<Vec<Shard>, SssError> {
+    let _ = (secret, n, k, split_id, fill);
+    todo!("STUB: split with given coefficients (device-loss recovery step 2)")
+}
+
 /// Recover the secret from K or more shards.
 ///
 /// Uses Lagrange interpolation at x=0.
@@ -466,6 +483,58 @@ fn eval_poly_stack(coeffs: &[GF], x: GF) -> GF {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The k−1 shards at x = 1..k−1 of a 1-byte secret, for the coefficients `c` (k−1 bytes)
+    fn shares(secret: u8, k: u8, c: &[u8]) -> Vec<u8> {
+        let mut given = Some(c.to_vec());
+        let shards = split_with(
+            &[secret],
+            k,
+            k,
+            [7; SPLIT_ID_LEN],
+            &mut |out| match given.take() {
+                Some(v) => {
+                    out.copy_from_slice(&v);
+                    true
+                }
+                None => false,
+            },
+        )
+        .expect("split");
+        assert_eq!(
+            recover(&shards).expect("k shards recover").as_slice(),
+            &[secret]
+        );
+        shards[..usize::from(k) - 1]
+            .iter()
+            .map(|s| s.y[0])
+            .collect()
+    }
+
+    /// Exact threshold (oracle: Shamir's argument, counted): over every secret byte and every choice of the random
+    /// coefficients, each value of the k−1 shares occurs with every secret exactly 256^(k−2) times, so k−1 shares
+    /// say nothing about the secret; and the k shards recover it (checked inside `shares`). k = 2 and k = 3 are
+    /// enumerated in full (2¹⁶ and 2²⁴ splits).
+    #[test]
+    fn k_minus_one_shares_are_equally_consistent_with_every_secret() {
+        for k in [2u8, 3] {
+            let free = usize::from(k) - 1;
+            let mut counts = vec![0u32; 256usize.pow(free as u32) * 256];
+            let mut compared = 0u64;
+            for secret in 0..=255u8 {
+                for c in 0..256usize.pow(free as u32) {
+                    let coeffs: Vec<u8> = (0..free).map(|i| (c >> (8 * i)) as u8).collect();
+                    let ys = shares(secret, k, &coeffs);
+                    let key = ys.iter().fold(0usize, |a, &y| a << 8 | usize::from(y));
+                    counts[key * 256 + usize::from(secret)] += 1;
+                    compared += 1;
+                }
+            }
+            let each = 256u32.pow(u32::from(k) - 2);
+            assert!(counts.iter().all(|&n| n == each), "k = {k}: not uniform");
+            assert_eq!(compared, 256u64.pow(u32::from(k)));
+        }
+    }
 
     #[test]
     fn test_check_share_len_is_the_u32_range() {

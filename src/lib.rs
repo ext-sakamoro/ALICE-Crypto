@@ -136,6 +136,8 @@ pub mod keystore;
 #[cfg(feature = "hash")]
 pub mod mac;
 pub mod random;
+#[cfg(all(feature = "aead", feature = "sha256"))]
+pub mod recovery_code;
 pub mod semantics;
 #[cfg(feature = "sha256")]
 pub mod sha256;
