@@ -134,3 +134,63 @@ fn the_async_view_is_ready_at_once_with_the_same_results() {
     let dynamic: &dyn KeyProvider = &store;
     assert_eq!(KeyOps::current_generation(dynamic), Ok(2));
 }
+
+/// `verify_mac` accepts exactly the tag `mac` gives (the reference is the public derivation, as
+/// above) and refuses one changed bit, another context, another generation, and reports a missing
+/// key as the key's error.
+#[test]
+fn verify_mac_accepts_only_the_tag_of_that_message_context_and_generation() {
+    let store = Fixed;
+    let mac_key = MacKey::from_bytes(alice_crypto::hash::derive_key(KEY_OPS_MAC_CONTEXT, &K2));
+    let tag = *mac_with_context(&mac_key, b"ctx", b"name").as_bytes();
+    assert_eq!(KeyOps::verify_mac(&store, 2, b"ctx", b"name", &tag), Ok(()));
+    for bit in [0usize, 7, 128, 255] {
+        let mut forged = tag;
+        forged[bit / 8] ^= 1 << (bit % 8);
+        assert_eq!(
+            KeyOps::verify_mac(&store, 2, b"ctx", b"name", &forged),
+            Err(KeyOpsError::Verify),
+            "bit {bit} flipped was accepted"
+        );
+    }
+    assert_eq!(
+        KeyOps::verify_mac(&store, 2, b"ctX", b"name", &tag),
+        Err(KeyOpsError::Verify)
+    );
+    assert_eq!(
+        KeyOps::verify_mac(&store, 1, b"ctx", b"name", &tag),
+        Err(KeyOpsError::Verify)
+    );
+    assert_eq!(
+        KeyOps::verify_mac(&store, 3, b"ctx", b"name", &tag),
+        Err(KeyOpsError::Key(KeyProviderError::Irrecoverable("removed")))
+    );
+    // the async view gives the same answers
+    assert_eq!(
+        now(AsyncKeyOps::verify_mac(&store, 2, b"ctx", b"name", &tag)),
+        Ok(())
+    );
+    let mut forged = tag;
+    forged[31] ^= 0x80;
+    assert_eq!(
+        now(AsyncKeyOps::verify_mac(&store, 2, b"ctx", b"name", &forged)),
+        Err(KeyOpsError::Verify)
+    );
+}
+
+/// Off wasm32 the async view's futures are `Send` (a native caller can spawn them on a
+/// multi-threaded executor); this is a compile-time check.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn off_wasm32_the_async_futures_are_send() {
+    fn send<T: Send>(t: T) -> T {
+        t
+    }
+    let store = Fixed;
+    let tag = [0u8; 32];
+    let _ = now(send(AsyncKeyOps::current_generation(&store)));
+    let _ = now(send(AsyncKeyOps::seal(&store, 2, b"", b"x")));
+    let _ = now(send(AsyncKeyOps::open(&store, 2, b"", b"x")));
+    let _ = now(send(AsyncKeyOps::mac(&store, 2, b"", b"x")));
+    let _ = now(send(AsyncKeyOps::verify_mac(&store, 2, b"", b"x", &tag)));
+}

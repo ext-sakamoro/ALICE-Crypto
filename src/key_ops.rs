@@ -13,8 +13,14 @@
 //!
 //! [`AsyncKeyOps`] is the same contract with each operation returning a future, for stores
 //! whose operations are asynchronous (WebCrypto returns promises). Every [`KeyOps`] is an
-//! [`AsyncKeyOps`] whose futures are ready at once. The futures are not required to be
-//! `Send`: a browser runs them on its one thread.
+//! [`AsyncKeyOps`] whose futures are ready at once. On wasm32 targets neither the store nor its
+//! futures need to be `Send` (a browser runs them on its one thread and its keys are JavaScript
+//! objects); on every other target the store is `Send + Sync` and its futures are `Send`, so they
+//! can be spawned on a multi-threaded executor ([`MaybeSend`] / [`MaybeSync`] carry the bound).
+//!
+//! A tag is checked with [`KeyOps::verify_mac`] / [`AsyncKeyOps::verify_mac`], which compare every
+//! byte whatever the input: comparing two tags with `==` on `[u8; 32]` stops at the first difference
+//! and tells an attacker how many leading bytes of a forged tag were right.
 //!
 //! The caller asks for the current generation first and seals under it, so that it can
 //! bind the generation into the associated data it passes.
@@ -37,6 +43,8 @@ pub enum KeyOpsError {
     Open,
     /// The store could not seal (its random source or its cipher failed).
     Seal,
+    /// The tag is not the tag of the message under that context and generation.
+    Verify,
 }
 
 impl From<KeyProviderError> for KeyOpsError {
@@ -51,6 +59,7 @@ impl core::fmt::Display for KeyOpsError {
             Self::Key(e) => write!(f, "{e}"),
             Self::Open => f.write_str("the sealed value did not open"),
             Self::Seal => f.write_str("the value could not be sealed"),
+            Self::Verify => f.write_str("the tag did not verify"),
         }
     }
 }
@@ -111,12 +120,58 @@ pub trait KeyOps: Send + Sync {
         context: &[u8],
         message: &[u8],
     ) -> Result<[u8; 32], KeyOpsError>;
+
+    /// `Ok` when `tag` is the [`Self::mac`] of `message` under `context` and `generation`, compared in
+    /// constant time.
+    ///
+    /// # Errors
+    ///
+    /// [`KeyOpsError::Verify`] when the tag differs, the errors of [`Self::mac`] otherwise.
+    #[cfg(feature = "hash")]
+    fn verify_mac(
+        &self,
+        generation: KeyGeneration,
+        context: &[u8],
+        message: &[u8],
+        tag: &[u8; 32],
+    ) -> Result<(), KeyOpsError> {
+        let expected = self.mac(generation, context, message)?;
+        if crate::mac::ct_eq_tag(&expected, tag) {
+            Ok(())
+        } else {
+            Err(KeyOpsError::Verify)
+        }
+    }
 }
 
+/// `Send` except on wasm32 targets, where every type is [`MaybeSend`] (see the module documentation).
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send + ?Sized> MaybeSend for T {}
+/// `Send` except on wasm32 targets, where every type is [`MaybeSend`] (see the module documentation).
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSend for T {}
+
+/// `Sync` except on wasm32 targets, where every type is [`MaybeSync`] (see the module documentation).
+#[cfg(not(target_arch = "wasm32"))]
+pub trait MaybeSync: Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Sync + ?Sized> MaybeSync for T {}
+/// `Sync` except on wasm32 targets, where every type is [`MaybeSync`] (see the module documentation).
+#[cfg(target_arch = "wasm32")]
+pub trait MaybeSync {}
+#[cfg(target_arch = "wasm32")]
+impl<T: ?Sized> MaybeSync for T {}
+
 /// [`KeyOps`] with operations that complete later.
-pub trait AsyncKeyOps {
+pub trait AsyncKeyOps: MaybeSend + MaybeSync {
     /// See [`KeyOps::current_generation`].
-    fn current_generation(&self) -> impl Future<Output = Result<KeyGeneration, KeyOpsError>>;
+    fn current_generation(
+        &self,
+    ) -> impl Future<Output = Result<KeyGeneration, KeyOpsError>> + MaybeSend;
 
     /// See [`KeyOps::seal`].
     fn seal(
@@ -124,7 +179,7 @@ pub trait AsyncKeyOps {
         generation: KeyGeneration,
         aad: &[u8],
         plaintext: &[u8],
-    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>>;
+    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> + MaybeSend;
 
     /// See [`KeyOps::open`].
     fn open(
@@ -132,7 +187,7 @@ pub trait AsyncKeyOps {
         generation: KeyGeneration,
         aad: &[u8],
         sealed: &[u8],
-    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>>;
+    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> + MaybeSend;
 
     /// See [`KeyOps::mac`].
     #[cfg(feature = "hash")]
@@ -141,7 +196,26 @@ pub trait AsyncKeyOps {
         generation: KeyGeneration,
         context: &[u8],
         message: &[u8],
-    ) -> impl Future<Output = Result<[u8; 32], KeyOpsError>>;
+    ) -> impl Future<Output = Result<[u8; 32], KeyOpsError>> + MaybeSend;
+
+    /// See [`KeyOps::verify_mac`]: the tag is compared in constant time.
+    #[cfg(feature = "hash")]
+    fn verify_mac(
+        &self,
+        generation: KeyGeneration,
+        context: &[u8],
+        message: &[u8],
+        tag: &[u8; 32],
+    ) -> impl Future<Output = Result<(), KeyOpsError>> + MaybeSend {
+        async move {
+            let expected = self.mac(generation, context, message).await?;
+            if crate::mac::ct_eq_tag(&expected, tag) {
+                Ok(())
+            } else {
+                Err(KeyOpsError::Verify)
+            }
+        }
+    }
 }
 
 /// Needs the OS random source (feature `rng`): sealing draws a fresh nonce per value.
@@ -188,7 +262,9 @@ impl<P: KeyProvider + ?Sized> KeyOps for P {
 }
 
 impl<T: KeyOps + ?Sized> AsyncKeyOps for T {
-    fn current_generation(&self) -> impl Future<Output = Result<KeyGeneration, KeyOpsError>> {
+    fn current_generation(
+        &self,
+    ) -> impl Future<Output = Result<KeyGeneration, KeyOpsError>> + MaybeSend {
         core::future::ready(KeyOps::current_generation(self))
     }
 
@@ -197,7 +273,7 @@ impl<T: KeyOps + ?Sized> AsyncKeyOps for T {
         generation: KeyGeneration,
         aad: &[u8],
         plaintext: &[u8],
-    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> {
+    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> + MaybeSend {
         core::future::ready(KeyOps::seal(self, generation, aad, plaintext))
     }
 
@@ -206,7 +282,7 @@ impl<T: KeyOps + ?Sized> AsyncKeyOps for T {
         generation: KeyGeneration,
         aad: &[u8],
         sealed: &[u8],
-    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> {
+    ) -> impl Future<Output = Result<Vec<u8>, KeyOpsError>> + MaybeSend {
         core::future::ready(KeyOps::open(self, generation, aad, sealed))
     }
 
@@ -216,7 +292,7 @@ impl<T: KeyOps + ?Sized> AsyncKeyOps for T {
         generation: KeyGeneration,
         context: &[u8],
         message: &[u8],
-    ) -> impl Future<Output = Result<[u8; 32], KeyOpsError>> {
+    ) -> impl Future<Output = Result<[u8; 32], KeyOpsError>> + MaybeSend {
         core::future::ready(KeyOps::mac(self, generation, context, message))
     }
 }

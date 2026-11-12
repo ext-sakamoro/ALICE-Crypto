@@ -94,5 +94,61 @@ class MarkedFunctions(unittest.TestCase):
         self.assertGreaterEqual(len(names), 10)
 
 
+VERIFY = """\
+pub trait KeyOps {
+    fn mac(&self, g: u32) -> Result<[u8; 32], E>;
+    // fn verify_mac(&self) == a comment does not count
+    fn verify_mac(&self, g: u32, tag: &[u8; 32]) -> Result<(), E> {
+        let expected = self.mac(g)?;
+        if crate::mac::ct_eq_tag(&expected, tag) { Ok(()) } else { Err(E::Verify) }
+    }
+}
+pub trait Declared {
+    fn verify_mac(&self, g: u32, tag: &[u8; 32]) -> Result<(), E>;
+}
+"""
+
+
+def tag_check(src: str) -> tuple[list[str], int]:
+    root = Path(tempfile.mkdtemp())
+    (root / "src").mkdir()
+    (root / "src" / "a.rs").write_text(src, encoding="utf-8")
+    guard.ROOT = root
+    return guard.check_tag_comparisons(sorted((root / "src").rglob("*.rs")))
+
+
+class TagComparisons(unittest.TestCase):
+    def test_a_body_using_ct_eq_tag_passes_and_a_declaration_is_not_counted(self):
+        problems, checked = tag_check(VERIFY)
+        self.assertEqual(problems, [])
+        self.assertEqual(checked, 1)
+
+    def test_comparing_with_eq_or_ne_is_an_error(self):
+        for bad in ("expected == *tag", "expected != *tag"):
+            src = VERIFY.replace("crate::mac::ct_eq_tag(&expected, tag)", bad, 1)
+            problems, _ = tag_check(src)
+            self.assertTrue(any("`==` / `!=`" in p for p in problems), (bad, problems))
+            self.assertTrue(any("呼んでいない" in p for p in problems), (bad, problems))
+
+    def test_eq_beside_the_call_is_still_an_error(self):
+        src = VERIFY.replace(
+            "if crate::mac::ct_eq_tag(&expected, tag)",
+            "if crate::mac::ct_eq_tag(&expected, tag) && expected[0] == tag[0]",
+            1,
+        )
+        problems, _ = tag_check(src)
+        self.assertTrue(any("`==` / `!=`" in p for p in problems), problems)
+
+    def test_no_body_counts_zero(self):
+        _, checked = tag_check("pub trait T { fn verify_mac(&self, t: &[u8; 32]) -> bool; }\n")
+        self.assertEqual(checked, 0)
+
+    def test_this_repository_has_tag_checks_and_passes(self):
+        guard.ROOT = HERE.parent
+        problems, checked = guard.check_tag_comparisons(sorted((HERE.parent / "src").rglob("*.rs")))
+        self.assertEqual(problems, [])
+        self.assertGreaterEqual(checked, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

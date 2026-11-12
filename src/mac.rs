@@ -150,6 +150,13 @@ pub fn verify_with_context(key: &MacKey, context: &[u8], message: &[u8], tag: &T
     mac_with_context(key, context, message) == *tag
 }
 
+/// Whether two tags are equal, comparing every byte (the time does not depend on where the first
+/// difference is). Code that checks a computed tag against a received one calls this, never `==` on
+/// the bytes (`scripts/constant_time_guard.py` check E).
+pub(crate) fn ct_eq_tag(a: &[u8; TAG_SIZE], b: &[u8; TAG_SIZE]) -> bool {
+    constant_time_eq(a, b)
+}
+
 /// Compares every byte before answering, so the time does not depend on where the first difference is.
 fn constant_time_eq(a: &[u8; TAG_SIZE], b: &[u8; TAG_SIZE]) -> bool {
     let mut diff: u8 = 0;
