@@ -64,6 +64,12 @@ fn symbols_text(sym: &[u8; 28]) -> String {
         .collect()
 }
 
+/// The 28 characters the code under test writes for `e` (its own text, `-` left out): the typo properties start
+/// from this, so they do not depend on the reference encoder
+fn own_text(e: &[u8; RECOVERY_CODE_ENTROPY]) -> String {
+    RecoveryCode::from_entropy(*e).to_text().replace('-', "")
+}
+
 /// The 28 characters for `e`, from the module docs
 fn reference_text(e: &[u8; RECOVERY_CODE_ENTROPY]) -> String {
     let mut data = [0u8; 26];
@@ -133,7 +139,7 @@ fn the_text_is_the_documented_encoding_and_reads_back() {
 fn every_single_character_change_is_refused() {
     let mut compared = 0;
     for seed in [0u8, 1, 77, 200, 255] {
-        let text = reference_text(&entropy(seed));
+        let text = own_text(&entropy(seed));
         for pos in 0..RECOVERY_CODE_LEN {
             for &c in ALPHABET.iter() {
                 if c == text.as_bytes()[pos] {
@@ -158,7 +164,7 @@ fn every_single_character_change_is_refused() {
 fn every_adjacent_swap_of_unequal_characters_is_refused() {
     let mut compared = 0;
     for seed in 0..=255u8 {
-        let text = reference_text(&entropy(seed));
+        let text = own_text(&entropy(seed));
         let b = text.as_bytes();
         for i in 0..RECOVERY_CODE_LEN - 1 {
             if b[i] == b[i + 1] {
