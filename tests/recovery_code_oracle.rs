@@ -333,3 +333,59 @@ fn degenerate_inputs_give_their_stated_errors() {
     );
     assert_eq!(format!("{g:?}"), "RecoveryCode(..)");
 }
+
+#[test]
+fn i_in_either_case_reads_as_one() {
+    // the module documents I and L (any case) as 1 and O as 0: every 1 typed as I or i reads back the same code
+    let mut compared = 0;
+    for seed in 0..=255u8 {
+        let want = reference_text(&entropy(seed));
+        if !want.contains('1') {
+            continue;
+        }
+        for letter in ["I", "i"] {
+            let text = want.replace('1', letter);
+            let back = RecoveryCode::parse(&text).expect("reads");
+            assert_eq!(
+                back.to_text().as_str(),
+                grouped(&want),
+                "seed {seed}, 1 as {letter}"
+            );
+            compared += 1;
+        }
+    }
+    assert!(compared > 0, "no reference text had a 1");
+}
+
+#[test]
+fn a_character_outside_ascii_is_refused_at_its_position() {
+    // the position counts code characters (not bytes, not the ignored '-' and ' '): a two-byte é at 5 and a
+    // three-byte fullwidth digit at 3 are both reported where a person sees them
+    let text = reference_text(&entropy(9));
+    let mut compared = 0;
+    for (at, c) in [(5usize, 'é'), (3, '１'), (0, 'Ω')] {
+        let mut chars: Vec<char> = text.chars().collect();
+        chars[at] = c;
+        let t: String = chars.into_iter().collect();
+        assert_eq!(
+            RecoveryCode::parse(&t).map(|_| ()),
+            Err(RecoveryCodeError::Character { position: at }),
+            "{c} at {at}"
+        );
+        // the same after grouping by characters (the file's `grouped` cuts bytes): the dashes are not counted
+        let g = t
+            .chars()
+            .collect::<Vec<_>>()
+            .chunks(4)
+            .map(|c| c.iter().collect::<String>())
+            .collect::<Vec<_>>()
+            .join("-");
+        assert_eq!(
+            RecoveryCode::parse(&g).map(|_| ()),
+            Err(RecoveryCodeError::Character { position: at }),
+            "{c} at {at}, grouped"
+        );
+        compared += 2;
+    }
+    assert_eq!(compared, 6);
+}

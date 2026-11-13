@@ -233,6 +233,9 @@ const RNG_BUF_SIZE: usize = 1024;
     reason = "secret material generation, not Law output: the random polynomial coefficients must be unpredictable, and no Law-bearing result is computed from them"
 )]
 pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
+    // the arguments are checked before any random byte is drawn, so a wrong k or n is reported as such even
+    // when the random source would fail
+    check_split_args(secret, n, k)?;
     let mut split_id = [0u8; SPLIT_ID_LEN];
     if getrandom::getrandom(&mut split_id).is_err() {
         return Err(SssError::RandomFailed);
@@ -259,18 +262,8 @@ pub fn split(secret: &[u8], n: u8, k: u8) -> Result<Vec<Shard>, SssError> {
 }
 
 #[cfg(feature = "rng")]
-/// [`split`] with the split id and the random coefficients given by the caller: `fill` writes the k−1 coefficients
-/// of the next secret byte's polynomial (constant term excluded) and returns `false` when it has none.
-///
-/// `split` is this with the operating system's random source; the exact-threshold test enumerates every
-/// coefficient through it.
-fn split_with(
-    secret: &[u8],
-    n: u8,
-    k: u8,
-    split_id: [u8; SPLIT_ID_LEN],
-    fill: &mut dyn FnMut(&mut [u8]) -> bool,
-) -> Result<Vec<Shard>, SssError> {
+/// The argument errors of [`split`] / [`split_with`], in their documented order
+fn check_split_args(secret: &[u8], n: u8, k: u8) -> Result<(), SssError> {
     if secret.is_empty() {
         return Err(SssError::EmptySecret);
     }
@@ -283,7 +276,22 @@ fn split_with(
     if n == 0 {
         return Err(SssError::TooManyShards);
     }
-    check_share_len(secret.len())?;
+    check_share_len(secret.len()).map(|_| ())
+}
+
+/// [`split`] with the split id and the random coefficients given by the caller: `fill` writes the k−1 coefficients
+/// of the next secret byte's polynomial (constant term excluded) and returns `false` when it has none.
+///
+/// `split` is this with the operating system's random source; the exact-threshold test enumerates every
+/// coefficient through it.
+fn split_with(
+    secret: &[u8],
+    n: u8,
+    k: u8,
+    split_id: [u8; SPLIT_ID_LEN],
+    fill: &mut dyn FnMut(&mut [u8]) -> bool,
+) -> Result<Vec<Shard>, SssError> {
+    check_split_args(secret, n, k)?;
     let mut shards: Vec<Shard> = (1..=n)
         .map(|x| Shard {
             x,
