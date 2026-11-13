@@ -21,8 +21,16 @@ const MARKER: [u8; 32] = *b"secret-marker:0123456789abcdefgh";
 static ARMED: AtomicBool = AtomicBool::new(false);
 static LEAKED: AtomicUsize = AtomicUsize::new(0);
 static SCANNED: AtomicUsize = AtomicUsize::new(0);
-/// The armed tests run one at a time (the counters are process-wide)
+/// The tests run one at a time, each for its whole length: the flag and the counters are process-wide, so a block
+/// another test frees (an input it built, dropped after its own check) must not land in this test's armed window
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+/// Holds the one-at-a-time lock for a whole test (inputs built, checked, and dropped under it)
+fn exclusive() -> std::sync::MutexGuard<'static, ()> {
+    ONE_AT_A_TIME
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 
 struct Scanning;
 
@@ -50,11 +58,9 @@ unsafe impl GlobalAlloc for Scanning {
 #[global_allocator]
 static GLOBAL: Scanning = Scanning;
 
-/// Runs `f` with the check armed and returns (blocks still holding the marker, blocks scanned)
+/// Runs `f` with the check armed and returns (blocks still holding the marker, blocks scanned); the caller holds
+/// [`exclusive`] for the whole test
 fn armed(f: impl FnOnce()) -> (usize, usize) {
-    let _one = ONE_AT_A_TIME
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
     LEAKED.store(0, Ordering::SeqCst);
     SCANNED.store(0, Ordering::SeqCst);
     ARMED.store(true, Ordering::SeqCst);
@@ -68,6 +74,7 @@ fn armed(f: impl FnOnce()) -> (usize, usize) {
 
 #[test]
 fn a_mac_key_is_zeroed_when_it_is_dropped() {
+    let _one = exclusive();
     let key = Box::new(MacKey::from_bytes(MARKER));
     let (leaked, scanned) = armed(|| drop(key));
     assert!(scanned > 0, "nothing was scanned");
@@ -76,6 +83,7 @@ fn a_mac_key_is_zeroed_when_it_is_dropped() {
 
 #[test]
 fn a_shards_share_is_zeroed_when_it_is_dropped() {
+    let _one = exclusive();
     // a shard whose share bytes are the marker (the byte form: [1][k][x][split id][u32 LE len][y][check])
     let mut body = vec![1u8, 2, 1];
     body.extend_from_slice(&[7u8; 16]);
@@ -92,6 +100,7 @@ fn a_shards_share_is_zeroed_when_it_is_dropped() {
 
 #[test]
 fn the_recovered_secret_is_zeroed_when_it_is_dropped() {
+    let _one = exclusive();
     let shards = sss::split(&MARKER, 3, 2).unwrap();
     let (leaked, scanned) = armed(|| {
         let secret = sss::recover(&shards[..2]).unwrap();
