@@ -82,6 +82,9 @@ pub enum RecoveryCodeError {
     Open,
     /// The operating system's random source is unavailable.
     RandomFailed,
+    /// HKDF refused the key length. It does not for the 32-byte key this module derives; the variant exists so the
+    /// library passes the error on instead of assuming it away.
+    KeyDerivation,
 }
 
 impl core::fmt::Display for RecoveryCodeError {
@@ -106,6 +109,7 @@ impl core::fmt::Display for RecoveryCodeError {
             Self::RandomFailed => {
                 f.write_str("the operating system's random source is unavailable")
             }
+            Self::KeyDerivation => f.write_str("HKDF refused the key length"),
         }
     }
 }
@@ -159,14 +163,22 @@ fn data_symbols(entropy: &[u8; RECOVERY_CODE_ENTROPY]) -> Zeroizing<[u8; DATA_SY
     d
 }
 
-/// The key `entropy` seals with under `salt`
-fn derive_key(entropy: &[u8; RECOVERY_CODE_ENTROPY], salt: &[u8]) -> crate::stream::Key {
+/// The key `entropy` seals with under `salt` (HKDF-SHA256, 32 bytes).
+///
+/// # Errors
+///
+/// [`RecoveryCodeError::KeyDerivation`] if HKDF refuses the output length, which it does not for 32 bytes (the limit
+/// is 255 blocks of 32): the error is passed on rather than assumed away.
+fn derive_key(
+    entropy: &[u8; RECOVERY_CODE_ENTROPY],
+    salt: &[u8],
+) -> Result<crate::stream::Key, RecoveryCodeError> {
     let mut prk = crate::sha256::hkdf_extract(salt, entropy);
     let mut key = crate::stream::Key([0u8; 32]);
-    crate::sha256::hkdf_expand(&prk, RECOVERY_CODE_KEY_INFO, &mut key.0)
-        .expect("32 bytes is within HKDF-SHA256's output");
+    let expanded = crate::sha256::hkdf_expand(&prk, RECOVERY_CODE_KEY_INFO, &mut key.0);
     zeroize::Zeroize::zeroize(&mut prk);
-    key
+    expanded.map_err(|_| RecoveryCodeError::KeyDerivation)?;
+    Ok(key)
 }
 
 impl RecoveryCode {
@@ -274,7 +286,7 @@ pub fn seal_secret(
     let mut header = [0u8; HEADER];
     header[0] = RECOVERY_BLOB_VERSION;
     getrandom::getrandom(&mut header[1..]).map_err(|_| RecoveryCodeError::RandomFailed)?;
-    let key = derive_key(&code.entropy, &header[1..]);
+    let key = derive_key(&code.entropy, &header[1..])?;
     let mut ad = Vec::with_capacity(HEADER + aad.len());
     ad.extend_from_slice(&header);
     ad.extend_from_slice(aad);
@@ -304,7 +316,7 @@ pub fn open_secret(
     if blob[0] != RECOVERY_BLOB_VERSION {
         return Err(RecoveryCodeError::UnsupportedVersion(blob[0]));
     }
-    let key = derive_key(&code.entropy, &blob[1..HEADER]);
+    let key = derive_key(&code.entropy, &blob[1..HEADER])?;
     let mut ad = Vec::with_capacity(HEADER + aad.len());
     ad.extend_from_slice(&blob[..HEADER]);
     ad.extend_from_slice(aad);
