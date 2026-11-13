@@ -66,6 +66,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- `sss::split` は引数 (空の secret / k / n / 長さ) を検査してから乱数を引く (以前は split id の乱数を先に引き、乱数源の失敗が引数の誤りより先に出た)
 - `recovery_code`: 鍵の導出 (HKDF-SHA256) の長さの失敗を `expect` で仮定せず型付きの error `RecoveryCodeError::KeyDerivation` (新しい variant、32 byte の鍵では起きない) として返す 鍵の bytes は同じ
 - `rng` なしの build では、OS の乱数を使う関数が無くなる: `Key::generate` / `Nonce::generate` / `SigningKey::generate` / `MacKey::generate` / `KeyStore::generate` / `KeyStore::rotate` / `split` / `seal` / `seal_with_aad` / `seal_envelope` / `reseal_envelope` / `ChunkSealer::new` / `hpke::setup_base_sender` / `random::fill` / `SecureRng::try_from_entropy` / `DpNoise::try_from_entropy` 以前の `default-features = false` (std なし) の build はこれらを持っていたので、std なしでこれらを使う利用側は `rng` (bare metal は `custom-rng`) を足す
 - CI: wasm の job の wasmtime を v49.0.2 に固定し、配布物を SHA-256 (a4d6e9e3…、release の digest と手元の再計算で一致) で照合して retry 付きで取り、binary を cache する 配布元が落ち続けた時は同じ版の wasmtime-cli を crates.io から `cargo install --locked` で作る `wasmtime --version` が動かなければ fail (setup action は latest を選び、配布元の HTTP 504 で他の repository の job が落ちた)
