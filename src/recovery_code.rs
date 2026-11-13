@@ -159,12 +159,14 @@ fn data_symbols(entropy: &[u8; RECOVERY_CODE_ENTROPY]) -> Zeroizing<[u8; DATA_SY
     d
 }
 
-/// The key `entropy` seals with under `salt`
+/// The key `entropy` seals with under `salt`: HKDF-SHA256 with one output block. HKDF-Expand (RFC 5869 §2.3) of
+/// L = 32 bytes is T(1) = HMAC(PRK, info || 0x01), written out here so no length can fail.
 fn derive_key(entropy: &[u8; RECOVERY_CODE_ENTROPY], salt: &[u8]) -> crate::stream::Key {
     let mut prk = crate::sha256::hkdf_extract(salt, entropy);
-    let mut key = crate::stream::Key([0u8; 32]);
-    crate::sha256::hkdf_expand(&prk, RECOVERY_CODE_KEY_INFO, &mut key.0)
-        .expect("32 bytes is within HKDF-SHA256's output");
+    let mut block = Zeroizing::new([0u8; RECOVERY_CODE_KEY_INFO.len() + 1]);
+    block[..RECOVERY_CODE_KEY_INFO.len()].copy_from_slice(RECOVERY_CODE_KEY_INFO);
+    block[RECOVERY_CODE_KEY_INFO.len()] = 1;
+    let key = crate::stream::Key(crate::sha256::hmac(&prk, block.as_ref()));
     zeroize::Zeroize::zeroize(&mut prk);
     key
 }
