@@ -60,8 +60,8 @@ alice-crypto = { version = "0.1" }
 | `rng` | via `std` | The operating system's random source (`getrandom`): key, nonce and share generation, `random::fill`, sealing with a fresh nonce, the HPKE sender, `try_from_entropy`. Without it no `getrandom` is linked and the hashes, MACs, KDFs, AEADs with a given nonce, opening and dp from a key build on every target |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
-| `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below) |
-| `wasm-js` | no | `wasm32-unknown-unknown` in a JavaScript environment (a browser or Node): implies `std`, the random source is `crypto.getRandomValues` through `getrandom`'s `js` backend |
+| `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below); on `wasm32-unknown-unknown` the JavaScript host's source is used instead |
+| `wasm-js` | no | Kept for compatibility (implies `std`): the default build already takes the random source from `crypto.getRandomValues` on `wasm32-unknown-unknown` |
 
 For `no_std` environments (embedded, RTOS, WASM):
 
@@ -93,12 +93,13 @@ final binary (`getrandom::register_custom_getrandom!`, see the getrandom docs):
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc", "custom-rng"] }
 ```
 
-In a browser or other JavaScript environment (`wasm32-unknown-unknown`), use the default std build with `wasm-js`,
-which takes the random source from `crypto.getRandomValues`:
+In a browser, Node or another JavaScript host (`wasm32-unknown-unknown`), the default build takes the random
+source from `crypto.getRandomValues` (`getrandom`'s `js` backend, enabled for that target only), with no feature,
+dependency or `RUSTFLAGS` of your own; other targets keep the operating system's source:
 
 ```toml
 [dependencies]
-alice-crypto = { version = "0.6", features = ["wasm-js"] }
+alice-crypto = { version = "0.7" }
 ```
 
 ## Usage

@@ -43,10 +43,12 @@ alloc = ["blake3?/traits-preview"]
 # keeps compiling
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
+# wasm32-unknown-unknown では JavaScript の host の乱数 (下の target 別の依存) が優先され、登録した乱数は使われない
 # 詳細 https://docs.rs/getrandom/0.2/getrandom/macro.register_custom_getrandom.html
 custom-rng = ["rng", "getrandom/custom"]
-# wasm32-unknown-unknown in a JavaScript environment (a browser or Node): the OS random source comes from
-# `crypto.getRandomValues` through getrandom's `js` backend (wasm-bindgen; no effect on other targets)
+# Kept for compatibility: on wasm32-unknown-unknown the default build already takes the OS random source from
+# the JavaScript host (`crypto.getRandomValues`, getrandom's `js` backend, the target-specific dependency
+# below); no effect on other targets
 wasm-js = ["std", "getrandom/js"]
 
 [dependencies]
@@ -73,6 +75,14 @@ hkdf = { version = "0.12", default-features = false, optional = true }
 x25519-dalek = { version = "2", default-features = false, optional = true }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"], optional = true }
 
+# On WebAssembly with no OS (wasm32-unknown-unknown) the OS random source is the JavaScript host's
+# `crypto.getRandomValues` (browsers, Node, edge runtimes), through getrandom's `js` backend. This entry only
+# adds the `js` feature to the getrandom above on that target: it is linked only when `rng` is on (as
+# everywhere), other targets keep the OS random source, and a consumer needs no feature, dependency or
+# RUSTFLAGS of its own. On this target the `js` backend takes precedence over `custom-rng`
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.2", default-features = false, features = ["js"], optional = true }
+
 [profile.release]
 lto = "fat"
 codegen-units = 1
@@ -95,3 +105,8 @@ debug = false
 # SHA-256 of the recorded-bit scenarios (tests/semantics_golden.rs) and of the
 # semantics identifier fold (tests/crypto_semantics_id.rs)
 sha2 = "0.10"
+
+# runs tests/wasm_random.rs on wasm32-unknown-unknown under Node (`wasm-bindgen-test-runner`, the version of
+# the `wasm-bindgen` entry in Cargo.lock)
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+wasm-bindgen-test = "0.3"

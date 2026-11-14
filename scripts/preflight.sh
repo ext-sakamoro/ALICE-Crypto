@@ -34,6 +34,7 @@ has_toolchain() { rustup toolchain list | grep -q "^$1"; }
 #   - fuzz.yml:fuzz:Set fuzz duration [target=fuzz_signature_verify] (no cargo / grep)
 #   - fuzz.yml:fuzz:Run fuzz target (time-boxed) [target=fuzz_signature_verify] (continue-on-error)
 #   - fuzz.yml:fuzz:Report crash (informational) [target=fuzz_signature_verify] (no cargo / grep)
+#   - ci.yml:wasm-js:Install wasm-bindgen-cli (needs network / runner-only; the wasm-js step below checks the local one's version)
 
 need actionlint "brew install actionlint"
 need cargo-audit "cargo install cargo-audit --locked"
@@ -296,6 +297,12 @@ step "ci.yml / test: Test (full native feature set)"
 
 step "ci.yml / test: Law tests (semantics goldens and identifier, edge-case goldens)"
 scripts/run_tests.sh semantics_golden=6,crypto_semantics_id=6,float_edge_golden=3 -- cargo test --test semantics_golden --test crypto_semantics_id --test float_edge_golden
+
+step "ci.yml / wasm-js: Check and test on wasm32-unknown-unknown under Node (every test passes, 0 fails)"
+need node "wasm-bindgen-test-runner runs the test binary under Node"
+need wasm-bindgen-test-runner "cargo install wasm-bindgen-cli --version <the wasm-bindgen version in Cargo.lock> --locked"
+rustup target list --installed | grep -q '^wasm32-unknown-unknown$' || rustup target add wasm32-unknown-unknown
+( export CARGO_TERM_COLOR="always" RUSTFLAGS="-Dwarnings"; scripts/wasm_js_test.sh wasm_random )
 
 step "ci.yml / release: release profile tests"
 cargo test --release
