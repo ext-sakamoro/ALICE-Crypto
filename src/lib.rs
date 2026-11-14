@@ -112,6 +112,20 @@
 
 extern crate alloc;
 
+// getrandom 0.2 takes its `js` backend over `custom` when both are on, so a registered source would be
+// ignored without a word: refuse the build instead (scripts/wasm_rng_features.py checks both ways)
+#[cfg(all(
+    target_arch = "wasm32",
+    target_os = "unknown",
+    feature = "wasm-js",
+    feature = "custom-rng"
+))]
+compile_error!(
+    "alice-crypto: on wasm32-unknown-unknown the random source is either the JavaScript host's \
+     (feature `wasm-js`, which `std-base`, `std` and the default build turn on) or one the final binary \
+     registers (feature `custom-rng`, with `default-features = false`), not both"
+);
+
 #[cfg(feature = "aead")]
 pub mod aead;
 #[cfg(feature = "aead")]

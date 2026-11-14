@@ -27,8 +27,9 @@ CRATES = ("alice_crypto", "alice_crypto_no_std_consumer")
 BUILDS: list[tuple[str | None, str]] = [
     (None, ""),
     (None, "alloc"),
+    # without std, the random source registered by the final binary (getrandom's custom backend)
     ("wasm32-unknown-unknown", "custom-rng"),
-    # the default std build in a JavaScript environment, the random source from getrandom's `js` backend
+    # without std, the JavaScript host's random source (getrandom's `js` backend)
     ("wasm32-unknown-unknown", "wasm-js"),
     ("thumbv7em-none-eabihf", "alloc,custom-rng"),
 ]

@@ -8,8 +8,9 @@ name: CI
 # - no_std job: 0.4.0 までは `crate-type` に cdylib があり、std なしの build は panic_handler /
 #   allocator を要求して落ちた (thumbv7em は cdylib を黙って落とすので見えなかった) 0.4.1 で cdylib を外し、
 #   `consumers/no_std` (std なしで依存する下流 crate) を host / wasm32-unknown-unknown / thumbv7em で build する
-#   bare-metal と wasm32-unknown-unknown は getrandom 非対応 target なので `custom-rng` 込み
-#   wasm32-unknown-unknown は std の既定の build も `wasm-js` (getrandom の js backend、JavaScript の環境の乱数) で build する
+#   bare-metal は getrandom 非対応 target なので `custom-rng` 込み
+#   wasm32-unknown-unknown の乱数は `wasm-js` (JavaScript の host、std-base / std / 既定に含む) か `custom-rng` (default-features = false) のどちらか、
+#   両方は compile_error! wasm-js job で各組を check し (scripts/wasm_rng_features.py)、tests/wasm_random.rs を Node で走らせる
 # - feature-powerset: std 固定 depth 2 (std なしの組合せは no_std job で検証)
 # - sibling path dep なし (2026-09-16: no-op だった stub action は撤去)
 
@@ -294,6 +295,54 @@ jobs:
         run: python3 scripts/no_std_consumer.py
       - name: Downstream no_std crate (checker tests)
         run: python3 scripts/test_no_std_consumer.py
+
+  # WebAssembly in a JavaScript host (wasm32-unknown-unknown: browsers, Node, edge runtimes): the default
+  # build takes its randomness from `crypto.getRandomValues` with no feature, dependency or RUSTFLAGS from
+  # the consumer. tests/wasm_random.rs (the OS random source, generated cipher / MAC / dp keys, X25519
+  # agreement) runs under Node, and every test in it must pass, so a run of 0 fails (scripts/wasm_js_test.sh);
+  # the runner is wasm-bindgen-cli at the version of `wasm-bindgen` in Cargo.lock
+  wasm-js:
+    name: wasm32-unknown-unknown under Node (random source and key generation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      # the toolchain and its wasm32-unknown-unknown target come from rust-toolchain.toml (the pin)
+      - name: Install the pinned toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: wasm-js
+      - name: wasm-bindgen version from Cargo.lock
+        id: wb
+        shell: bash
+        run: |
+          set -euo pipefail
+          v="$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/version = |"/, ""); print; exit }' Cargo.lock)"
+          if [ -z "$v" ]; then echo "::error::Cargo.lock has no wasm-bindgen entry"; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Cache wasm-bindgen-cli
+        id: wb-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.wasm-bindgen-cli
+          key: wasm-bindgen-cli-${{ steps.wb.outputs.version }}-x86_64-linux
+      # crates.io with the crate's own lock file (cargo checks every downloaded crate's checksum); the
+      # workflow's -Dwarnings is not applied to the tool's build
+      - name: Install wasm-bindgen-cli
+        if: steps.wb-cache.outputs.cache-hit != 'true'
+        env:
+          RUSTFLAGS: ""
+          V: ${{ steps.wb.outputs.version }}
+        run: cargo install wasm-bindgen-cli --version "$V" --locked --root ~/.wasm-bindgen-cli
+      - name: Put wasm-bindgen-cli on PATH
+        run: echo "$HOME/.wasm-bindgen-cli/bin" >> "$GITHUB_PATH"
+      - name: Check and test on wasm32-unknown-unknown under Node (every test passes, 0 fails)
+        run: scripts/wasm_js_test.sh wasm_random
+      # the random source is the JavaScript host's or a registered one, never both (a compile_error!); each
+      # case's getrandom backend from cargo tree; fewer cases than listed fail
+      - name: Random source features on wasm32-unknown-unknown (one of wasm-js and custom-rng, both refused)
+        run: python3 scripts/wasm_rng_features.py
 
   feature-powerset:
     name: Feature powerset (cargo-hack, std 固定, depth 2)

@@ -60,8 +60,8 @@ alice-crypto = { version = "0.1" }
 | `rng` | via `std` | The operating system's random source (`getrandom`): key, nonce and share generation, `random::fill`, sealing with a fresh nonce, the HPKE sender, `try_from_entropy`. Without it no `getrandom` is linked and the hashes, MACs, KDFs, AEADs with a given nonce, opening and dp from a key build on every target |
 | `alloc` | no | Heap allocation without std (for embedded targets) |
 | `ffi` | no | Deprecated no-op (implies `std`): the crate has no C ABI; removed in 0.5.0 |
-| `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below) |
-| `wasm-js` | no | `wasm32-unknown-unknown` in a JavaScript environment (a browser or Node): implies `std`, the random source is `crypto.getRandomValues` through `getrandom`'s `js` backend |
+| `custom-rng` | no | `getrandom`'s custom backend, for targets it does not support (see below); on `wasm32-unknown-unknown` only with `default-features = false` (with `wasm-js` it is a compile error) |
+| `wasm-js` | via `std-base` | The random source on `wasm32-unknown-unknown` in a JavaScript host: `crypto.getRandomValues` through `getrandom`'s `js` backend (implies `rng`; selects nothing on other targets) |
 
 For `no_std` environments (embedded, RTOS, WASM):
 
@@ -93,13 +93,19 @@ final binary (`getrandom::register_custom_getrandom!`, see the getrandom docs):
 alice-crypto = { version = "0.1", default-features = false, features = ["alloc", "custom-rng"] }
 ```
 
-In a browser or other JavaScript environment (`wasm32-unknown-unknown`), use the default std build with `wasm-js`,
-which takes the random source from `crypto.getRandomValues`:
+In a browser, Node or another JavaScript host (`wasm32-unknown-unknown`), the default build (and `std-base`)
+takes the random source from `crypto.getRandomValues` through `getrandom`'s `js` backend (feature `wasm-js`), with
+no feature, dependency or `RUSTFLAGS` of your own; other targets keep the operating system's source:
 
 ```toml
 [dependencies]
-alice-crypto = { version = "0.6", features = ["wasm-js"] }
+alice-crypto = { version = "0.7" }
 ```
+
+On that target the random source is one of the two: the JavaScript host's (`wasm-js`) or one you register
+(`custom-rng`, with `default-features = false`). Both together are a compile error, since `getrandom` 0.2 would
+take the JavaScript source and ignore the registered one. The rule only sees alice-crypto's features: a crate
+that turns on `getrandom/custom` itself next to alice-crypto's default build gets the JavaScript source.
 
 ## Usage
 
