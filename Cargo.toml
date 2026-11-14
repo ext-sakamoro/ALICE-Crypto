@@ -17,7 +17,7 @@ std = ["std-base", "full"]
 # the standard library, the OS random source and the always-present modules (dp, gf256, keystore,
 # random, semantics) without any module feature: dp with `SecureRng::try_from_entropy` and nothing of
 # the AEAD, KDF, key-exchange or hash dependencies (add module features for those)
-std-base = ["alloc", "rng", "getrandom?/std", "blake3?/std", "chacha20poly1305?/std", "sha2?/std", "hmac?/std", "hkdf?/std", "aes-gcm?/std"]
+std-base = ["alloc", "rng", "wasm-js", "getrandom?/std", "blake3?/std", "chacha20poly1305?/std", "sha2?/std", "hmac?/std", "hkdf?/std", "aes-gcm?/std"]
 # every module
 full = ["hash", "sha256", "aead", "kdf", "x25519", "hpke"]
 # BLAKE3 (`hash`), and the modules built on it: `mac`, `signature`, `sss`
@@ -43,11 +43,16 @@ alloc = ["blake3?/traits-preview"]
 # keeps compiling
 ffi = ["std"]
 # bare-metal (getrandom 非対応 target) 用: 最終 binary 側で `getrandom::register_custom_getrandom!` を登録する
+# wasm32-unknown-unknown でも使えるが、`default-features = false` で (既定の build と std-base は `wasm-js` を含み、
+# 両方を有効にすると compile_error!、getrandom 0.2 は両方あると `js` を優先して登録した乱数を使わないため)
 # 詳細 https://docs.rs/getrandom/0.2/getrandom/macro.register_custom_getrandom.html
 custom-rng = ["rng", "getrandom/custom"]
-# wasm32-unknown-unknown in a JavaScript environment (a browser or Node): the OS random source comes from
-# `crypto.getRandomValues` through getrandom's `js` backend (wasm-bindgen; no effect on other targets)
-wasm-js = ["std", "getrandom/js"]
+# The OS random source on wasm32-unknown-unknown in a JavaScript host (browsers, Node, edge runtimes):
+# `crypto.getRandomValues` through getrandom's `js` backend. `std-base` (and so `std` and the default build)
+# turns it on, so a consumer needs no feature of its own; on every other target it selects nothing (getrandom
+# links its JavaScript dependencies only for that target). It and `custom-rng` together on that target are a
+# compile_error!: the random source is one or the other
+wasm-js = ["rng", "getrandom/js"]
 
 [dependencies]
 blake3 = { version = "1.5", default-features = false, optional = true }
@@ -95,3 +100,8 @@ debug = false
 # SHA-256 of the recorded-bit scenarios (tests/semantics_golden.rs) and of the
 # semantics identifier fold (tests/crypto_semantics_id.rs)
 sha2 = "0.10"
+
+# runs tests/wasm_random.rs on wasm32-unknown-unknown under Node (`wasm-bindgen-test-runner`, the version of
+# the `wasm-bindgen` entry in Cargo.lock)
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+wasm-bindgen-test = "0.3"
