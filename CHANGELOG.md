@@ -72,6 +72,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- CI (ALICE-Law G11 (c)): この repository が持つ共有の写しのうち表で移行中の行 12 件を各 owner の main と同じ target の bytes にし、`.github/shared-files-pin` / `.github/g11-table-pin` / `.github/public-text-pin` を ALICE-Law 5e397e3 に上げた (移行中の行の写しがすべて target、指摘 0)
 - `sss::split` は引数 (空の secret / k / n / 長さ) を検査してから乱数を引く (以前は split id の乱数を先に引き、乱数源の失敗が引数の誤りより先に出た)
 - `recovery_code`: 鍵の導出 (HKDF-SHA256) の長さの失敗を `expect` で仮定せず型付きの error `RecoveryCodeError::KeyDerivation` (新しい variant、32 byte の鍵では起きない) として返す 鍵の bytes は同じ
 - `rng` なしの build では、OS の乱数を使う関数が無くなる: `Key::generate` / `Nonce::generate` / `SigningKey::generate` / `MacKey::generate` / `KeyStore::generate` / `KeyStore::rotate` / `split` / `seal` / `seal_with_aad` / `seal_envelope` / `reseal_envelope` / `ChunkSealer::new` / `hpke::setup_base_sender` / `random::fill` / `SecureRng::try_from_entropy` / `DpNoise::try_from_entropy` 以前の `default-features = false` (std なし) の build はこれらを持っていたので、std なしでこれらを使う利用側は `rng` (bare metal は `custom-rng`) を足す
