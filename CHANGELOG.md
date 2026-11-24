@@ -72,6 +72,7 @@ All notable changes to ALICE-Crypto are documented here.
 - `signature` module (`SigningKey` / `VerifyingKey` / `Signature` / `sign` / `verify` / `sign_with_context` / `verify_with_context` / `SignatureError` / `SIGNATURE_SIZE`、root の再公開も): 中身は公開鍵署名でなく MAC なので `mac` に改名した 次の破壊的な版で外す 移行: `SigningKey` と `VerifyingKey` → `MacKey` (鍵は 1 つ)、`Signature` → `mac::Tag`、`sign` → `mac::mac` ⚠️ `sign_with_context` の tag は `mac_with_context` の tag と違う (context の長さの前置が増えた)
 
 ### Changed
+- workflow (ci.yml / fuzz.yml / g3-ir.yml / security-audit.yml / semver-checks.yml / wasm-dp.yml): concurrency の group を event で分ける 手動の run (workflow_dispatch) は自分の run id の group を持ち、ほかの event の run を cancel せず、cancel もされない main の run は commit ごとの group で cancel しない (cancel-in-progress は main 以外だけ)
 - CI (ALICE-Law G11 (c)): この repository が持つ共有の写しのうち表で移行中の行 12 件を各 owner の main と同じ target の bytes にし、`.github/shared-files-pin` / `.github/g11-table-pin` / `.github/public-text-pin` を ALICE-Law 5e397e3 に上げた (移行中の行の写しがすべて target、指摘 0)
 - `sss::split` は引数 (空の secret / k / n / 長さ) を検査してから乱数を引く (以前は split id の乱数を先に引き、乱数源の失敗が引数の誤りより先に出た)
 - `recovery_code`: 鍵の導出 (HKDF-SHA256) の長さの失敗を `expect` で仮定せず型付きの error `RecoveryCodeError::KeyDerivation` (新しい variant、32 byte の鍵では起きない) として返す 鍵の bytes は同じ

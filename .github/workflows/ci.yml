@@ -26,6 +26,10 @@ env:
   RUSTFLAGS: "-Dwarnings"
   NATIVE_FEATURES: "std,ffi"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && format('dispatch-{0}', github.run_id) || (github.ref == 'refs/heads/main' && github.sha || github.ref) }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   test:
     # debug on x86_64 (ubuntu) and aarch64 (macOS); ALICE-Law G4 checks the
